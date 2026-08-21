@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use PhishVN-Infra, please cite the dataset as below (DOI pending) and this code repository."
+title: "PhishVN-Infra: Detection-Time DNS/TLS Infrastructure of Vietnamese-Targeting Phishing Domains with a CT-Sampled, Age-Matched Benign Arm"
+abstract: >-
+  The DNS, TLS and (where a registry publishes it) WHOIS state of Vietnamese-targeting
+  phishing domains captured on an edge collector within minutes to hours of detection, with a
+  benign arm sampled from raw Certificate Transparency logs at a rotated target certificate age
+  and matched on TLD, a .vn supplement of that arm, a certified .vn comparator, and the audit
+  instruments (registry-wildcard probe, label gate, content map) that define the admission
+  funnel.
+type: dataset
+version: infra-v0.1.0-draft
+date-released: "2026-08-21"
+license: CC-BY-4.0
+doi: pending
+url: "https://github.com/vuthainguyen1602/phishvn-infra"
+repository-code: "https://github.com/vuthainguyen1602/phishvn-infra"
+keywords:
+  - phishing
+  - Vietnamese
+  - DNS
+  - TLS
+  - WHOIS
+  - certificate transparency
+  - detection-time infrastructure
+  - cybersecurity dataset
+authors:
+  - given-names: Thai
+    family-names: "Nguyen Vu"
+    email: nvthai@utc2.edu.vn
+    affiliation: "University of Transport and Communications, Ho Chi Minh City Campus (UTC2)"
+notes: >-
+  Code is MIT-licensed (LICENSE-CODE); the dataset is CC BY 4.0 (LICENSE). Version 1.0.0 of the
+  dataset is frozen on the day the registered analysis trigger fires (or on 2026-11-15 at the
+  achieved count); its DOI replaces "pending" in this file at that point.

@@ -1,0 +1,43 @@
+PhishVN dataset — Creative Commons Attribution 4.0 International (CC BY 4.0)
+========================================================================
+
+Copyright (c) 2026 Thai Nguyen Vu,
+University of Transport and Communications — Ho Chi Minh City Campus (UTC2).
+
+The PhishVN dataset (URL table, features, labels, scenario/tier annotations,
+datasheet, and the preliminary paired HTML/screenshot subset) is licensed under
+the Creative Commons Attribution 4.0 International License (CC BY 4.0).
+
+You are free to:
+  * Share  — copy and redistribute the material in any medium or format.
+  * Adapt  — remix, transform, and build upon the material for any purpose,
+             even commercially.
+
+Under the following terms:
+  * Attribution — You must give appropriate credit (cite the dataset, see
+    CITATION.cff and the assigned DOI), provide a link to the license, and
+    indicate if changes were made.
+  * No additional restrictions — You may not apply legal terms or technological
+    measures that legally restrict others from doing anything the license permits.
+
+Full legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+Human-readable summary: https://creativecommons.org/licenses/by/4.0/
+
+--------------------------------------------------------------------------------
+NOTES specific to this dataset (do not override the license, but read before use):
+
+1. Source attribution. Phishing URLs derive from the NCSC "Tin Nhiem Mang"
+   blacklist and benign URLs from its trusted-organisation registry and the
+   Tranco top-list; please also credit those upstream sources where required.
+
+2. Malicious content. Captured phishing HTML pages and screenshots depict live
+   malicious / brand-cloning pages. They are provided for research only, in a
+   GATED tier (on request), and must NOT be redistributed as attack material or
+   used to deceive. Do not open captured HTML outside an isolated environment.
+
+3. Privacy. Personal data has been redacted to tokens; any id↔PII mapping is
+   kept private and encrypted, and is NOT part of this release. Use complies
+   with Decree 13/2023/ND-CP and Vietnam's Personal Data Protection Law.
+
+The accompanying source CODE (scripts/) is licensed separately under the MIT
+License; see LICENSE-CODE.

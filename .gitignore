@@ -1,0 +1,15 @@
+# never commit data or private material to the public repo
+data/raw/
+data/interim/
+data/processed/
+data/private/
+!data/**/.gitkeep
+# models / tracking / build artefacts
+models/
+mlruns/
+release/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+.idea/
