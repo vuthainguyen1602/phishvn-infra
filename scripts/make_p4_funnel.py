@@ -27,7 +27,7 @@ average and the trailing fortnight -- and where they disagree is the honest unce
 
     python scripts/assets/make_p4_funnel.py
 
-Writes data/processed/p4_funnel.csv, data/processed/p4_accrual.csv,
+Writes data/processed/p4/p4_funnel.csv, data/processed/p4/p4_accrual.csv,
 papers/P4_infra/figures/funnel_accrual.pdf and papers/P4_infra/sections/gen_funnel.tex.
 """
 from __future__ import annotations
@@ -189,6 +189,11 @@ def make_figure(fun: list[dict], acc: list[dict], proj: dict) -> str:
     return out
 
 
+def tex_int(n: int) -> str:
+    """Digit grouping that survives math mode, where a bare comma sets as punctuation."""
+    return f"{n:,}".replace(",", "{,}")
+
+
 def make_tex(fun: list[dict], acc: list[dict], proj: dict) -> None:
     live = fun[0]["surviving"]
     wild = next(r for r in fun if r["stage"].startswith("less registry"))
@@ -196,13 +201,14 @@ def make_tex(fun: list[dict], acc: list[dict], proj: dict) -> None:
     kept = final / live
     p_all, p_tr = proj["all"], proj["trailing"]
     dates = sorted({r["date"] for r in acc})
+    cal_days = (dt.date.fromisoformat(dates[-1]) - dt.date.fromisoformat(dates[0])).days + 1
 
     body = (
         f"Figure~\\ref{{fig:funnel}} puts the cuts of Table~\\ref{{tab:audit}} on one axis, and "
         "the shape is not the one a reader would guess from a list of design decisions: of the "
-        f"${live:,}$ live-stratum candidates only ${final}$ survive "
+        f"${tex_int(live)}$ live-stratum candidates only ${final}$ survive "
         f"(${100 * kept:.1f}\\%$), and the single largest loss is not a decision at all. The "
-        f"registry-wildcard screen removes ${wild['removed']:,}$ names --- more than the label "
+        f"registry-wildcard screen removes ${tex_int(wild['removed'])}$ names --- more than the label "
         "gate and the conditioning together --- because a registry that answers for every name "
         "under its TLD manufactures candidates that were never registered "
         "(Section~\\ref{ssec:wildcard}). A study that had not screened them would have had a "
@@ -212,7 +218,10 @@ def make_tex(fun: list[dict], acc: list[dict], proj: dict) -> None:
         f"domains a day the trigger is reached around "
         f"{p_all['date'].strftime('%d %B %Y') if p_all['date'] else 'no projected date'}, at the "
         f"trailing {TRAIL_DAYS}-day rate of ${p_tr['rate']:.1f}$ a day around "
-        f"{p_tr['date'].strftime('%d %B %Y') if p_tr['date'] else 'no projected date'}; the gap "
+        f"{p_tr['date'].strftime('%d %B %Y') if p_tr['date'] else 'no projected date'} (both "
+        "rates are gains over elapsed days from the first detection day, so the whole-window "
+        f"rate excludes that day's ${acc[0]['cumulative']}$ first-day admissions; counting them, "
+        f"${final}$ over the {cal_days} calendar days would read ${final / cal_days:.1f}$/day); the gap "
         "between those two dates is the honest width of the estimate, and both sit inside the "
         f"registered calendar bound of {CALENDAR_BOUND.strftime('%Y-%m-%d')}, past which the "
         f"analysis proceeds at the achieved $n$ regardless. The record spans {len(dates)} "
@@ -233,8 +242,8 @@ def main() -> int:
     proj = {"all": {"rate": r_all, "date": d_all}, "trailing": {"rate": r_tr, "date": d_tr}}
 
     os.makedirs(PROC, exist_ok=True)
-    write_csv(os.path.join(PROC, "p4_funnel.csv"), fun)
-    write_csv(os.path.join(PROC, "p4_accrual.csv"), acc)
+    write_csv(os.path.join(PROC, "p4", "p4_funnel.csv"), fun)
+    write_csv(os.path.join(PROC, "p4", "p4_accrual.csv"), acc)
     make_figure(fun, acc, proj)
     make_tex(fun, acc, proj)
     print(f"[i] funnel {fun[0]['surviving']:,} -> {fun[-1]['surviving']}; "

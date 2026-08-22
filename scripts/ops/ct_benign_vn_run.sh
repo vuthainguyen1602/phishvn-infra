@@ -24,7 +24,10 @@ case "$(( 10#$(date +%H) % 4 ))" in
 esac
 # .vn is ~1 apex name in 2,000 CT entries, so a tick walks the log tail until 10 names are kept
 # or 20,000 entries are read (~8 min measured 2026-08-21); the lock stops ticks from overlapping.
-exec flock -n /tmp/phishvn-ctbenign-vn.lock \
-  python3 scripts/watch_ct_benign.py --stratum vn --age-days "$AGE" \
-    --target 10 --max-entries 20000 \
-  >> data/raw/ct_benign_vn/watch.log 2>&1
+# flock -E 200 makes a held lock distinguishable from a failing collector.
+rc=0; { flock -n -E 200 /tmp/phishvn-ctbenign-vn.lock python3 scripts/watch_ct_benign.py --stratum vn --age-days "$AGE" --target 10 --max-entries 20000 >> data/raw/ct_benign_vn/watch.log 2>&1; } || rc=$?
+case "$rc" in
+  0) ;;
+  200) echo "[!] $(date -Is) tick skipped (previous run still holding the lock)" >> data/raw/ct_benign_vn/watch.log ;;
+  *) echo "[!] $(date -Is) collector exited $rc (see the traceback above)" >> data/raw/ct_benign_vn/watch.log ;;
+esac

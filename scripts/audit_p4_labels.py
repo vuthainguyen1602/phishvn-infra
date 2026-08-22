@@ -52,14 +52,14 @@ try:
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 
-P4_DATASET = os.path.join("data", "processed", "p4_infra_dataset.csv")
+P4_DATASET = os.path.join("data", "processed", "p4", "p4_infra_dataset.csv")
 DETECTIONS = os.path.join("data", "raw", "urlscan_brands", "detections.csv")
 TOKENS_JSON = os.path.join("data", "processed", "brand_tokens.json")
 OUT = os.path.join("data", "interim", "p4_label_audit.csv")
 # Every suffix the wildcard guard probed during a run, with what the resolver answered. Written
 # whenever audit() has probed anything, so the data article can publish the probe instead of
 # asking readers to trust the verdicts' `registry_wildcard` class.
-WILDCARD_PROBE_OUT = os.path.join("data", "processed", "p4_wildcard_probe.csv")
+WILDCARD_PROBE_OUT = os.path.join("data", "processed", "p4", "p4_wildcard_probe.csv")
 WATCHER_START = "2026-07-30"   # same boundary make_p4_assets.py uses for the live stratum
 
 # include_psl_private_domains=True — without it every site on a free subdomain host collapses to
@@ -114,7 +114,7 @@ _WILDCARD_CACHE: dict[str, frozenset[str]] = {}
 _WILDCARD_PROBED_ON: dict[str, str] = {}
 # Names the screen had to resolve live because their capture carried no address. Persisted for
 # the same reason as the probe answers: two builds minutes apart must see the same registry.
-LIVE_RESOLVE_OUT = os.path.join("data", "processed", "p4_live_resolve_cache.csv")
+LIVE_RESOLVE_OUT = os.path.join("data", "processed", "p4", "p4_live_resolve_cache.csv")
 _LIVE_RESOLVE_CACHE: dict[str, frozenset[str]] = {}
 _LIVE_RESOLVE_ON: dict[str, str] = {}
 _CACHES_LOADED = False

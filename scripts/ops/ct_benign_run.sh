@@ -24,6 +24,10 @@ case "$(( 10#$(date +%H) % 4 ))" in
   2) AGE=7  ;;
   *) AGE=14 ;;
 esac
-exec flock -n /tmp/phishvn-ctbenign.lock \
-  python3 scripts/watch_ct_benign.py --age-days "$AGE" --batches 4 \
-  >> data/raw/ct_benign/watch.log 2>&1
+# flock -E 200 makes a held lock distinguishable from a failing collector.
+rc=0; { flock -n -E 200 /tmp/phishvn-ctbenign.lock python3 scripts/watch_ct_benign.py --age-days "$AGE" --batches 4 >> data/raw/ct_benign/watch.log 2>&1; } || rc=$?
+case "$rc" in
+  0) ;;
+  200) echo "[!] $(date -Is) tick skipped (previous run still holding the lock)" >> data/raw/ct_benign/watch.log ;;
+  *) echo "[!] $(date -Is) collector exited $rc (see the traceback above)" >> data/raw/ct_benign/watch.log ;;
+esac

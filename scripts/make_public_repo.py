@@ -180,7 +180,11 @@ INFRA_SCRIPTS = [
 # The cron wrappers ship under scripts/ops/ with their `scripts/<role>/x.py` calls rewritten to
 # the flat `scripts/x.py` (the only edit made to any exported file; see _flatten_sh).
 INFRA_OPS = ["host_infra_run.sh", "ct_benign_run.sh", "ct_benign_vn_run.sh",
-             "urlscan_brands_run.sh", "rowcount_snapshot.sh"]
+             "urlscan_brands_run.sh", "rowcount_snapshot.sh",
+             # Ships with the wrappers because it is what tells a silent collector from a quiet
+             # day, and it checks that every module the wrappers import exists on the device --
+             # the failure that cost this collection 28 hours on 2026-08-21.
+             "jetson_health.sh"]
 # No test suite ships: the only candidates either import a non-exported module
 # (test_p4_cascade -> run_p4_cascade_eval) or hard-code the role-folder path scripts/assets/
 # that the flat mirror does not have (test_p4_funnel, test_p4_perishability).
@@ -222,7 +226,7 @@ population:   ## funnel + conditioned population (refuses to fit models below th
 assets:       ## the data article's tables and figures
 \tpython scripts/make_p4_funnel.py && python scripts/make_p4b_assets.py
 clean:
-\trm -rf data/processed/p4_*.csv
+\trm -rf data/processed/p4/p4_*.csv
 """
 
 INFRA_DATA_README = """# Data

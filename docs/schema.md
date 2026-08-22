@@ -84,9 +84,9 @@ collected; the columns hold dates and registrar names only.
 
 - `p4_infra_dataset.csv`: the conditioned population, one row per registrable domain per arm,
   with `arm` and the gate `verdict`; produced by `make_p4_assets.py`.
-- `funnel.csv`: `stage, surviving, removed, note`; `accrual.csv`: cumulative admitted phishing
-  per day plus per-source daily rows; both produced by `make_p4_funnel.py`.
-- `label_audit.csv`: `registrable_domain, verdict` and the evidence columns (no page content).
-- `content_map.csv`: `registrable_domain, renders_vietnamese, credential_form`.
-- `wildcard_probe.csv`: `suffix, probe_name, resolved_ip, answers`.
+- `funnel.csv`: `stage, surviving, removed, note`; `accrual.csv`: `date, cumulative` admitted phishing
+  registrable domains by detection day; both produced by `make_p4_funnel.py`.
+- `label_audit.csv`: `registered_domain, source, first_detected, verdict, stage_removed` and the evidence columns `in_tranco, in_allowlist, blocklists, renders_vietnamese, credential_form, vn_lexical` (no page content).
+- `content_map.csv`: `registered_domain, renders_vietnamese, credential_form`.
+- `wildcard_probe.csv`: `suffix, probe_name, probed_on, resolver_host, answers, wildcards`.
 - `ct_benign_seen.txt`, `ct_benign_vn_seen.txt`: the samplers' seen-sets.

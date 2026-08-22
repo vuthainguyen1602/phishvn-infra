@@ -22,7 +22,7 @@ about phishing infrastructure. Everything below is the phishing arm, which is wh
 and what the study models.
 
 WHAT THE SHAPE IS, AND WHAT IT IS NOT. Resolvability holds near unity while the lag is short
-and collapses by an order of magnitude one bin later -- 0.98 in the 16-32 h bin against 0.10 in
+and collapses by an order of magnitude one bin later -- 0.97 in the 16-32 h bin against 0.09 in
 32-64 h. Both bins sit inside the backlog, so the stratum boundary is not doing that work. It is
 still not a clean hazard: a backlog worked in date order ties capture lag to detection date, so
 those bins differ by a day in both at once. Only the live stratum, where enrichment follows
@@ -46,8 +46,15 @@ plus transient resolver failures on .gov.vn -- the artefact class of §4, not ev
 
     python scripts/assets/make_p4_perishability.py
 
-Writes data/processed/p4_perishability.csv, data/processed/p4_retry.csv,
-papers/P4_infra/figures/perishability.pdf and papers/P4_infra/sections/gen_perishability.tex.
+Writes data/processed/p4/p4_perishability.csv, data/processed/p4/p4_retry.csv,
+papers/P4_infra/figures/perishability.pdf, papers/P4_infra/sections/gen_perishability.tex and
+papers/P4_infra/sections/gen_perishability_macros.tex (the retry/strata counts as macros).
+
+REGISTRY WILDCARDS ARE LEFT OUT (2026-08-22). The same screen P4b's perishability paragraph
+and audit_p4_labels.py apply (verdict `registry_wildcard`), through the same predicate and the
+same persisted probe file: a wildcard name resolves whether or not anyone registered it, so
+counting it credited the registry's parking answer to the campaign (98.6% of 2,147 live hosts
+before the screen; 95.4% of 668 after). Descriptive only; no registered parameter moves.
 """
 from __future__ import annotations
 
@@ -76,6 +83,9 @@ from genfile import write_generated  # noqa: E402
 from audit_infra_capture import (  # noqa: E402
     INFRA, WATCHER_START, best_per_domain, ts,
 )
+# Same registry-wildcard predicate and persisted probe file as the label audit and P4b: a name
+# that resolves only to the registry's parking answer is not a registration.
+from audit_p4_labels import is_registry_wildcard, registrable, write_wildcard_probe  # noqa: E402
 
 SEC = os.path.join(ROOT, "papers", "P4_infra", "sections")
 FIG = os.path.join(ROOT, "papers", "P4_infra", "figures")
@@ -124,15 +134,28 @@ def routable(r: dict) -> bool:
     return False
 
 
+def is_wildcard(r: dict) -> bool:
+    """Registry-wildcard host, judged on the record's own capture-time addresses (never a live
+    lookup: a record with no address cannot be a wildcard answer, and must not trigger one)."""
+    ips = frozenset(a_records(r))
+    return bool(ips) and is_registry_wildcard(registrable(r.get("domain") or ""), ips)
+
+
 def load(path: str, arm: str = "phish"):
-    """One record per domain in one arm, stratified as §3 stratifies, with lag in hours."""
+    """One record per domain in one arm, stratified as §3 stratifies, with lag in hours, and
+    registry-wildcard hosts left out (counted, so the prose can say how many). Returns the raw
+    rows, the screened records and the wildcard count."""
     rows = list(csv.DictReader(open(path, encoding="utf-8")))
     recs = []
+    n_wild = 0
     for r in best_per_domain(rows):
         if arm and (r.get("label") or "") != arm:
             continue
         t0, t1 = ts(r.get("first_detected")), ts(r.get("captured_at"))
         if not (t0 and t1):
+            continue
+        if is_wildcard(r):
+            n_wild += 1
             continue
         r = dict(r)
         r["_lag_h"] = max((t1 - t0).total_seconds() / 3600.0, 0.0)
@@ -140,7 +163,7 @@ def load(path: str, arm: str = "phish"):
         r["_resolves"] = resolves(r)
         r["_routable"] = routable(r)
         recs.append(r)
-    return rows, recs
+    return rows, recs, n_wild
 
 
 def bin_index(lag: float) -> int:
@@ -312,8 +335,11 @@ def tex_int(n: int) -> str:
     return f"{n:,}".replace(",", "{,}")
 
 
-def make_tex(recs, bins: list[dict], retry: list[dict], tail: dict) -> None:
-    """The numbers the prose may quote, generated so `make claims` can hold them to the CSV."""
+def make_tex(recs, bins: list[dict], retry: list[dict], tail: dict, n_wild: int = 0) -> None:
+    """The numbers the prose may quote, generated so `make claims` can hold them to the CSV.
+    Also writes gen_perishability_macros.tex (read from the preamble) so that prose elsewhere
+    in the manuscript -- the retry anchor in S3 and the deviation record in S5 -- quotes the
+    retry count through a macro rather than a literal that drifts with the capture."""
     st = {}
     for s in ("live", "backfill"):
         g = [r for r in recs if r["_stratum"] == s]
@@ -323,10 +349,33 @@ def make_tex(recs, bins: list[dict], retry: list[dict], tail: dict) -> None:
              if b["stratum"] == "backfill" and b["lag_lo_h"] in (16, 32)}
     ph = next(r for r in retry if r["arm"] == "phish")
     be = next(r for r in retry if r["arm"] == "benign")
+    po = next(r for r in retry if r["arm"] == "pooled")
+
+    macros = {
+        "PerishLiveN": tex_int(st["live"]["n"]),
+        "PerishLiveRate": f"{100 * st['live']['rate']:.1f}",
+        "PerishBackfillN": tex_int(st["backfill"]["n"]),
+        "PerishBackfillRate": f"{100 * st['backfill']['rate']:.1f}",
+        "PerishWildcardN": tex_int(n_wild),
+        "PerishHingeBefore": f"{hinge[16]['rate']:.2f}",
+        "PerishHingeAfter": f"{hinge[32]['rate']:.2f}",
+        "RetryPhishRevived": str(ph["revived"]),
+        "RetryPhishN": tex_int(ph["reattempted"]),
+        "RetryBenignRevived": str(be["revived"]),
+        "RetryBenignN": tex_int(be["reattempted"]),
+        "RetryPooledRevived": str(po["revived"]),
+        "RetryPooledN": tex_int(po["reattempted"]),
+    }
+    write_generated(os.path.join(SEC, "gen_perishability_macros.tex"),
+                    "% generated by scripts/assets/make_p4_perishability.py; do not edit\n"
+                    + "".join(f"\\newcommand{{\\{k}}}{{{v}}}\n" for k, v in macros.items()))
 
     body = (
         "Redrawn on the accumulated phishing arm rather than the watcher's first five days "
-        f"(Figure~\\ref{{fig:perish}}), the separation the design rests on is sharper than the "
+        f"(Figure~\\ref{{fig:perish}}), counting each hostname once and leaving out the "
+        f"{tex_int(n_wild)} registry-wildcard hosts of Section~\\ref{{ssec:wildcard}} (a name "
+        "the registry answers for whether or not anyone registered it is not infrastructure "
+        "surviving), the separation the design rests on is sharper than the "
         f"medians suggest. The live stratum ($n={tex_int(st['live']['n'])}$) is enriched a "
         f"median ${st['live']['median']:.1f}$\\,h after detection with "
         f"${100 * st['live']['rate']:.1f}\\%$ still resolving, the backlog "
@@ -376,19 +425,22 @@ def main() -> int:
         print(f"[i] {args.infra} absent — run watch_host_infra.py (or sync from the collector).")
         return 0
 
-    rows, recs = load(args.infra, args.arm)
+    rows, recs, n_wild = load(args.infra, args.arm)
+    # Persist the backlog's suffix answers so every build reads the same probe file.
+    write_wildcard_probe()
     bins = bin_table(recs)
     retry = retry_table(rows)
     tail = tail_concentration(recs)
 
     os.makedirs(PROC, exist_ok=True)
-    write_csv(os.path.join(PROC, "p4_perishability.csv"), bins)
-    write_csv(os.path.join(PROC, "p4_retry.csv"), retry)
+    write_csv(os.path.join(PROC, "p4", "p4_perishability.csv"), bins)
+    write_csv(os.path.join(PROC, "p4", "p4_retry.csv"), retry)
     make_figure(recs, bins, retry, tail)
-    make_tex(recs, bins, retry, tail)
+    make_tex(recs, bins, retry, tail, n_wild)
 
     live = sum(1 for r in recs if r["_stratum"] == "live")
-    print(f"[i] {args.arm} arm: {len(recs):,} domains with both timestamps "
+    print(f"[i] {args.arm} arm: {len(recs):,} domains with both timestamps, "
+          f"{n_wild:,} registry-wildcard hosts left out "
           f"(live {live:,}, backfill {len(recs) - live:,}); "
           f"tail>{TAIL_H:.0f}h {tail['n']:,} resolving, "
           f"top-3 IPs {100 * tail['top_share']:.0f}%, "

@@ -13,6 +13,10 @@ mkdir -p data/raw/host_infra
 LOG=data/raw/host_infra/watch.log
 # flock: a run that stalls on slow WHOIS servers must defer the next tick, not overlap it.
 # python3 -u: an unflushed stall leaves a zero-byte log and looks dead rather than slow.
-flock -n /tmp/phishvn-host-infra.lock \
-  python3 -u scripts/watch_host_infra.py >> "$LOG" 2>&1 \
-  || echo "[!] $(date -Is) tick skipped (previous run still holding the lock)" >> "$LOG"
+# flock -E 200 makes a held lock distinguishable from a failing collector.
+rc=0; { flock -n -E 200 /tmp/phishvn-host-infra.lock python3 -u scripts/watch_host_infra.py >> "$LOG" 2>&1; } || rc=$?
+case "$rc" in
+  0) ;;
+  200) echo "[!] $(date -Is) tick skipped (previous run still holding the lock)" >> "$LOG" ;;
+  *) echo "[!] $(date -Is) collector exited $rc (see the traceback above)" >> "$LOG" ;;
+esac

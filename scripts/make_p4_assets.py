@@ -65,8 +65,8 @@ from audit_p4_labels import (audit, is_hosted_subdomain,  # noqa: E402  (the lab
                              is_registry_wildcard, load_content_map, registrable)
 
 INFRA = "data/raw/host_infra/host_infra.csv"
-DATASET = "data/processed/p4_infra_dataset.csv"
-LABEL_AUDIT = "data/processed/p4_label_audit.csv"
+DATASET = "data/processed/p4/p4_infra_dataset.csv"
+LABEL_AUDIT = "data/processed/p4/p4_label_audit.csv"
 SECTIONS = "papers/P4_infra/sections"
 SMOKE_DIR = "data/interim/p4_smoke"
 CONTENT_MAP = "data/interim/p4_content_map.csv"
@@ -87,6 +87,11 @@ TRIGGER, CONFIRM = 500, 1000
 # unknowns measures brand-token co-occurrence, not phishing.
 PHISH_VERDICTS = ("corroborated", "credential_form", "content_confirmed", "vn_lexical")
 BENIGN_SOURCE = "ct_benign"
+# The .vn supplement of the matched arm (PREREG amendment 2026-08-21): its own source, admitted
+# to the SAME arm under the same conditioning, but at matching time it may fill .vn cells only
+# (see match_benign). It is never drawn into an off-.vn cell and never pooled as a comparator.
+SUPPLEMENT_SOURCE = "ct_benign_vn"
+BENIGN_SOURCES = (BENIGN_SOURCE, SUPPLEMENT_SOURCE)
 COMPARATOR_SOURCE = "tinnhiem_benign"
 COMPARATOR_ARM = "benign_tinnhiem"
 MODEL_ARMS = ("phish", "benign")
@@ -186,7 +191,7 @@ def build_population() -> tuple[pd.DataFrame, dict]:
 
     arms = []
     for name, arm in (("phish", ph_live),
-                      ("benign", be[be["source"] == BENIGN_SOURCE]),
+                      ("benign", be[be["source"].isin(BENIGN_SOURCES)]),
                       (COMPARATOR_ARM, be[be["source"] == COMPARATOR_SOURCE])):
         funnel[f"{name}_live"] = arm["registered_domain"].nunique()
         # astype(bool) is load-bearing on an arm the collector has not filled yet: an empty
@@ -308,7 +313,7 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
         f.write(f"As of {asof}: ${n_ph}$ conditioned phishing registrable domains admitted by the "
                 f"label gate of \\S\\ref{{sec:protocol}} (${100 * n_ph // TRIGGER}\\%$ of the "
                 f"$n \\geq {TRIGGER}$ analysis trigger), of which ${n_vn}$ are \\texttt{{.vn}}, "
-                f"and ${n_be}$ conditioned benign registrable domains from \\texttt{{ct\\_benign}} "
+                f"and ${format(n_be, ',').replace(',', '{,}')}$ conditioned benign registrable domains from \\texttt{{ct\\_benign}} "
                 f"--- the age-matched arm, and the only benign arm the comparison uses. "
                 + (f"TLD matching is achieved off \\texttt{{.vn}} but not on it: the benign arm "
                    f"holds ${be_vn}$ \\texttt{{.vn}} domains against the phishing arm's ${n_vn}$, "
@@ -334,12 +339,12 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
         # caption; they are the differences between consecutive rows of the tabular below, and
         # the reason both classes are counted-but-not-modelled is stated in the body
         # (\S\ref{ssec:wildcard} and the deviation record), so the caption no longer repeats it.
+        # The comparator column's never-pooled rule is stated in gen_progress, beside the table.
         f.write("\\begin{table}[t]\\centering\n"
-                "\\caption{Population funnel at the current capture snapshot: the cuts of "
-                "\\S\\ref{sec:protocol}, applied in the order shown, per arm, as unique "
-                "registrable domains surviving each cut. The label gate applies to the phishing "
-                "arm only. The comparator column (\\texttt{tinnhiem\\_benign}) is never pooled "
-                "with the \\texttt{ct\\_benign} arm.}\n\\label{tab:audit}\n"
+                "\\caption{Population funnel at the current snapshot: unique registrable domains "
+                "surviving each cut of \\S\\ref{sec:protocol}, per arm; the label gate applies "
+                "to the phishing arm only.}\n"
+                "\\label{tab:audit}\n"
                 "\\begin{tabular}{lccc}\\toprule\n"
                 "Cut & Phishing & Benign & Comparator \\\\ \\midrule\n")
         for label, cell in (
@@ -353,14 +358,16 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                  lambda a: funnel[f"{a}_gate"]),
                 ("Resolving and serving TLS",
                  lambda a: funnel[f"{a}_conditioned"])):
-            f.write(f"{label} & " + " & ".join(str(cell(a)) for a, _ in ARM_COLUMNS) + " \\\\\n")
+            # Digit-grouped like every other count in the manuscript ("1{,}953", not "1953").
+            f.write(f"{label} & " + " & ".join(f"{cell(a):,}".replace(",", "{,}")
+                                              for a, _ in ARM_COLUMNS) + " \\\\\n")
         f.write("\\bottomrule\\end{tabular}\\end{table}\n")
         write_generated(f"{SECTIONS}/tab_audit.tex", f.getvalue())
     with io.StringIO() as f:
         f.write("\\begin{table}[t]\\centering\n"
-                "\\caption{Feature availability by arm after conditioning --- the standing check "
-                "that no \\S\\ref{sec:design}-class artefact has re-entered. Every gap is "
-                "reported; none is used as a feature.}\n\\label{tab:availability}\n"
+                "\\caption{Feature availability by arm after conditioning, the standing check "
+                "that no \\S\\ref{sec:design}-class artefact has re-entered; every gap is "
+                "reported, none is used as a feature.}\n\\label{tab:availability}\n"
                 "\\begin{tabular}{lccc}\\toprule\n"
                 "Feature & " + " & ".join(h for _, h in ARM_COLUMNS) + " \\\\ \\midrule\n")
         for feat in FEATURES_NUM + FEATURES_CAT:
@@ -394,9 +401,9 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
     write_generated(
         f"{SECTIONS}/tab_benign_age.tex",
         "\\begin{table}[t]\\centering\n"
-        "\\caption{Certificate age in the \\texttt{ct\\_benign} pool, before and after the "
-        "collector's age-rotation fix; quartiles in days. Monitors the matching pool's age "
-        "support --- a single-arm marginal, so it reveals no outcome.}\n"
+        "\\caption{Certificate age in the \\texttt{ct\\_benign} pool (rows with a certificate) "
+        "before and after the collector's age-rotation fix, quartiles in days; a single-arm "
+        "marginal, so it reveals no outcome.}\n"
         "\\label{tab:benignage}\n"
         "\\begin{tabular}{lcccc}\\toprule\n"
         "Collection window & $n$ & Q1 & median & Q3 \\\\ \\midrule\n"
@@ -453,6 +460,11 @@ def match_benign(d: pd.DataFrame, seed: int) -> tuple[pd.DataFrame, float]:
         wish = MATCH_RATIO * len(cell)
         want += wish
         pool = be_cells[(be_cells["_sfx"] == sfx) & (be_cells["_bin"] == b)]
+        # Amendment 2026-08-21: the .vn supplement fills .vn cells ONLY. Its rows are all .vn by
+        # construction, so this is a guard against a future change of the sampler, not a filter
+        # that fires today; it is written down so the rule is in the code that draws the cells.
+        if not str(sfx).endswith("vn"):
+            pool = pool[pool["source"] != SUPPLEMENT_SOURCE]
         take = min(wish, len(pool))
         if take:
             got.append(pool.sample(n=take, random_state=rng.integers(0, 2**31)))

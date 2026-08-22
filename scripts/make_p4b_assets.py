@@ -17,7 +17,7 @@ the CSVs and forbids evaluation vocabulary in the built PDF.
 
     python scripts/assets/make_p4b_assets.py
 
-Reads  data/raw/host_infra/host_infra.csv, data/processed/p4_funnel.csv, p4_accrual.csv,
+Reads  data/raw/host_infra/host_infra.csv, data/processed/p4/p4_funnel.csv, p4_accrual.csv,
        p4_label_audit.csv and p4_wildcard_probe.csv (both written by build_population),
        data/interim/p4_content_map.csv, data/raw/ct_benign{,_vn}/seen_domains.txt (where
        present), data/processed/dataset_url.csv (the P1 corpus, for the overlap count).
@@ -60,14 +60,14 @@ SEC = os.path.join(ROOT, "papers", "P4b_infra_data", "sections")
 FIG = os.path.join(ROOT, "papers", "P4b_infra_data", "figures")
 PROC = os.path.join(ROOT, "data", "processed")
 INTERIM = os.path.join(ROOT, "data", "interim")
-FUNNEL_CSV = os.path.join(PROC, "p4_funnel.csv")
-ACCRUAL_CSV = os.path.join(PROC, "p4_accrual.csv")
-DATASET_CSV = os.path.join(PROC, "p4_infra_dataset.csv")
+FUNNEL_CSV = os.path.join(PROC, "p4", "p4_funnel.csv")
+ACCRUAL_CSV = os.path.join(PROC, "p4", "p4_accrual.csv")
+DATASET_CSV = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
 # Written by build_population (the per-candidate verdict table of every live-stratum candidate,
 # with the funnel stage that removed each) and by the audit's wildcard probe; both are inputs
 # here, never recomputed, so the article cannot describe a different audit from the one run.
-LABEL_AUDIT_CSV = os.path.join(PROC, "p4_label_audit.csv")
-PROBE_CSV = os.path.join(PROC, "p4_wildcard_probe.csv")
+LABEL_AUDIT_CSV = os.path.join(PROC, "p4", "p4_label_audit.csv")
+PROBE_CSV = os.path.join(PROC, "p4", "p4_wildcard_probe.csv")
 CONTENT_MAP_CSV = os.path.join(INTERIM, "p4_content_map.csv")
 VN_SUPP_CSV = os.path.join(ROOT, "data", "raw", "ct_benign_vn", "detections.csv")
 P1_URL_CSV = os.path.join(PROC, "dataset_url.csv")
@@ -75,6 +75,7 @@ VN_SUPP_START = "2026-08-21"   # the amendment that registered the .vn supplemen
 VERDICTS = ("corroborated", "credential_form", "content_confirmed", "vn_lexical",
             "uncorroborated", "no_capture", "excluded_legitimate", "hosted_subdomain",
             "registry_wildcard")
+ADMIT_VERDICTS = frozenset(VERDICTS[:4])
 
 SOURCE_LABEL = {
     "vn_phishing_live": ("phish", "national blacklist, live poll"),
@@ -151,11 +152,9 @@ def write_files_table() -> dict[str, int]:
     counts: dict[str, int] = {}
     out = io.StringIO()
     out.write("\\begin{table}[h]\n\\centering\\footnotesize\n\\setlength{\\tabcolsep}{4pt}\n"
-              "\\caption{Repository structure: every file in the deposited archive "
-              "\\nolinkurl{PhishVN-Infra_v1.0.0_open.zip}. Counts are those of the build "
-              "snapshot (a count of 0 is a source that had not written its first row by the "
-              "build date); the frozen deposit restates them in its \\nolinkurl{README.md} and "
-              "\\nolinkurl{MANIFEST.txt}.}\n\\label{tab:files}\n"
+              "\\caption{Repository structure: every file in "
+              "\\nolinkurl{PhishVN-Infra_v1.0.0_open.zip}, with its size or row count at the "
+              "build snapshot.}\n\\label{tab:files}\n"
               "\\begin{tabular}{@{}l l l@{}}\n\\toprule\nPath & Size/count & Contents \\\\\n"
               "\\midrule\n")
     for path, local, unit, what in DEPOSIT:
@@ -177,11 +176,8 @@ def write_sources_table(df: pd.DataFrame, pop: pd.DataFrame) -> None:
     out = io.StringIO()
     out.write("\\begin{table}[h]\n\\centering\\footnotesize\n"
               "\\caption{Sources in \\nolinkurl{host_infra.csv} at the build snapshot: capture "
-              "rows and distinct hostnames as collected, and the registrable domains each source "
-              "contributes to the conditioned population of "
-              "\\nolinkurl{p4_infra_dataset.csv} (the live stratum only; phishing sources "
-              "after the label gate). The \\nolinkurl{.vn} supplement (\\nolinkurl{ct_benign_vn}) "
-              "appears as its own row once it has written a first row.}\n\\label{tab:sources}\n"
+              "rows, distinct hostnames, and the registrable domains each source contributes to "
+              "the conditioned population.}\n\\label{tab:sources}\n"
               "\\begin{tabular}{@{}l l l r r r@{}}\n\\toprule\n"
               "Source & Label & Channel & Rows & Hostnames & Conditioned \\\\\n\\midrule\n")
     present = list(df["source"].value_counts().index)
@@ -307,10 +303,8 @@ def write_funnel_table() -> None:
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize\n"
               "\\caption{The phishing-arm funnel (\\nolinkurl{funnel.csv}) at the build snapshot: "
-              "live-stratum candidate registrable domains surviving each stage, in the order the "
-              "stages are applied, and the number each stage removed. Every removed class is "
-              "deposited with its verdict in \\nolinkurl{label_audit.csv}; none enters "
-              "\\nolinkurl{p4_infra_dataset.csv}.}\n\\label{tab:funnel}\n"
+              "live-stratum registrable domains surviving each stage, in the order applied, and "
+              "the number each stage removed.}\n\\label{tab:funnel}\n"
               "\\begin{tabular}{@{}l r r l@{}}\\toprule\n"
               "Stage & Surviving & Removed & Note \\\\ \\midrule\n")
     for r in fun:
@@ -336,15 +330,15 @@ def write_verdicts_table(df: pd.DataFrame) -> None:
     srcs = [s for s in SOURCE_LABEL if s in set(aud["source"])] + sorted(
         set(aud["source"]) - set(SOURCE_LABEL))
     cols = [v for v in VERDICTS if (aud["verdict"] == v).any()]
+    # VERDICTS lists the admitting classes first; an absent class drops its column, so the
+    # caption counts the admitting columns actually printed rather than asserting "four".
+    n_admit = sum(1 for v in cols if v in ADMIT_VERDICTS)
+    n_word = {1: "one", 2: "two", 3: "three", 4: "four"}.get(n_admit, str(n_admit))
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize\n\\setlength{\\tabcolsep}{3.5pt}\n"
               "\\caption{Label-gate verdicts of the live-stratum phishing candidates "
-              "(\\nolinkurl{label_audit.csv}) by the source that detected each registrable "
-              "domain first. The first four classes admit; the rest are removed and counted. "
-              "\\nolinkurl{corroborated} is empty because the three blocklists the audit reads "
-              "stopped publishing before the watcher started; a blacklist domain with no "
-              "urlscan capture has no content evidence and falls to \\nolinkurl{no_capture} "
-              "unless its name spells a Vietnamese word.}\n\\label{tab:verdicts}\n"
+              f"(\\nolinkurl{{label_audit.csv}}) by first-detecting source; the first {n_word} "
+              "classes admit, the rest are removed and counted.}\n\\label{tab:verdicts}\n"
               "\\begin{tabular}{@{}l" + "r" * (len(cols) + 1) + "@{}}\\toprule\n"
               "Source & " + " & ".join("\\rotatebox{90}{\\texttt{" + v.replace("_", "\\_")
                                       + "}}" for v in cols) + " & total \\\\ \\midrule\n")
@@ -367,10 +361,9 @@ def write_timestamps_table(df: pd.DataFrame) -> None:
     assert not missing, f"TZ_FIRST lacks {missing}"
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize\n"
-              "\\caption{Timestamp conventions of \\nolinkurl{host_infra.csv} by source. "
-              "``Naive'' means no offset is written; ``local'' is the collector's clock "
-              "(Asia/Ho\\_Chi\\_Minh, UTC+7). A user subtracting a naive local column from a "
-              "UTC one must localise it first.}\n\\label{tab:timestamps}\n"
+              "\\caption{Timestamp conventions of \\nolinkurl{host_infra.csv} by source; "
+              "``naive'' means no offset is written, ``local'' is the collector's clock "
+              "(Asia/Ho\\_Chi\\_Minh, UTC+7).}\n\\label{tab:timestamps}\n"
               "\\setlength{\\tabcolsep}{4pt}\\begin{tabular}{@{}l l l l l@{}}\\toprule\n"
               "Source & \\texttt{first\\_detected} & \\texttt{captured\\_at} & "
               "\\texttt{tls\\_not\\_before/after} & \\texttt{whois\\_*} \\\\ \\midrule\n")
@@ -386,11 +379,9 @@ def write_availability(pop: pd.DataFrame) -> None:
     user rather than for a pre-registration."""
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize\n"
-              "\\caption{Share of conditioned registrable domains for which each derived "
-              "field of \\nolinkurl{p4_infra_dataset.csv} is populated, per arm. A gap below "
-              "100\\% in the certificate fields is an unverified handshake (\\nolinkurl{tls_present} "
-              "is 1 but no certificate could be parsed), in \\nolinkurl{ns_provider_grp} an "
-              "empty NS set.}\n\\label{tab:availability}\n"
+              "\\caption{Share of conditioned registrable domains, per arm, with each derived "
+              "field of \\nolinkurl{p4_infra_dataset.csv} populated.}\n"
+              "\\label{tab:availability}\n"
               "\\begin{tabular}{lccc}\\toprule\n"
               "Field & " + " & ".join(h for _, h in ARM_COLUMNS) + " \\\\ \\midrule\n")
     for feat in FEATURES_NUM + FEATURES_CAT:
@@ -421,9 +412,9 @@ def write_benign_age(pop: pd.DataFrame) -> None:
     write_generated(
         os.path.join(SEC, "tab_benign_age.tex"),
         "\\begin{table}[h]\\centering\\footnotesize\n"
-        "\\caption{Certificate age at capture in the conditioned \\nolinkurl{ct_benign} arm, "
-        "before and after the sampler's age rotation was repaired; quartiles in days. A data "
-        "user matching on certificate age should draw from the two windows knowingly.}\n"
+        "\\caption{Certificate age at capture in the conditioned \\nolinkurl{ct_benign} arm "
+        "(rows with a certificate), before and after the sampler's age rotation was repaired; "
+        "quartiles in days.}\n"
         "\\label{tab:benignage}\n"
         "\\begin{tabular}{lcccc}\\toprule\n"
         "Collection window & $n$ & Q1 & median & Q3 \\\\ \\midrule\n"
