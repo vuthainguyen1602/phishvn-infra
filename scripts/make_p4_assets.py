@@ -317,7 +317,7 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                 f"--- the age-matched arm, and the only benign arm the comparison uses. "
                 + (f"TLD matching is achieved off \\texttt{{.vn}} but not on it: the benign arm "
                    f"holds ${be_vn}$ \\texttt{{.vn}} domains against the phishing arm's ${n_vn}$, "
-                   f"so for that ${100 * n_vn // max(n_ph, 1)}\\%$ of the phishing arm the "
+                   f"so for that ${round(100 * n_vn / max(n_ph, 1))}\\%$ of the phishing arm the "
                    f"artefact is not matched away but simply unmatched, and any \\texttt{{.vn}} "
                    f"contrast is out of reach until the benign feed supplies them. "
                    if be_vn < n_vn else

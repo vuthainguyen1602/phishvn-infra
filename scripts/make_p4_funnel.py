@@ -229,6 +229,31 @@ def make_tex(fun: list[dict], acc: list[dict], proj: dict) -> None:
     )
     write_generated(os.path.join(SEC, "gen_funnel.tex"), body.rstrip() + "%")
 
+    # The prose quotes the accrual rate and the admitted count in five places outside the dated
+    # deviation entries. They were typed by hand and went stale the moment the capture moved
+    # (7.2 -> 7.1, 181 -> 186 on 2026-08-22), so they read from here now. The dated entries keep
+    # their literals: what they record is what was true on their date.
+    macros = "\n".join([
+        f"\\newcommand{{\\AccrualRate}}{{{p_all['rate']:.1f}}}",
+        f"\\newcommand{{\\AccrualTrailing}}{{{p_tr['rate']:.1f}}}",
+        f"\\newcommand{{\\AdmittedN}}{{{final}}}",
+        f"\\newcommand{{\\BenignVnN}}{{{_benign_vn_count()}}}",
+    ])
+    write_generated(os.path.join(SEC, "gen_funnel_macros.tex"), macros)
+
+
+def _benign_vn_count() -> int:
+    """`.vn` names in the matched benign arm. It was zero for three weeks, until the 2026-08-21
+    supplement landed, so the discussion paragraph about empty `.vn` cells reads it from here
+    rather than asserting a number that has since stopped being true."""
+    import pandas as _pd
+    path = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
+    if not os.path.exists(path):
+        return 0
+    d = _pd.read_csv(path, low_memory=False)
+    be = d[d["arm"] == "benign"]
+    return int(be["registered_domain"].astype(str).str.endswith(".vn").sum())
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
