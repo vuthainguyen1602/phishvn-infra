@@ -36,7 +36,15 @@ sentencepiece>=0.2     # tokenizer cho ViSoBERT/XLM-R
 mlflow>=2.10          # optional experiment tracking (train scripts auto-detect)
 dvc>=3.0              # optional data/pipeline versioning
 pytest>=8.0           # unit tests / CI
-tldextract>=5.0   # CompPhish-compatible URL features (multi-part TLDs)
+# PINNED EXACTLY, not >=, and not because of the API deprecation warning it emits. This library
+# decides what a registrable domain IS, and make_p4_assets.py recomputes that unit at ANALYSIS
+# time, so two hosts on two versions disagree about what a row is. Measured 2026-08-24 over the
+# 26,945 hostnames in host_infra: the collector (5.3.1) and this machine (3.2.0) folded 192 of
+# them differently, because 3.2.0's bundled suffix snapshot predates io.vn and id.vn -- so 128
+# distinct Vietnamese registrations collapsed into the two bare suffixes `io.vn` and `id.vn`,
+# exactly the pages.dev failure the psl.py docstring describes. 5.3.1 is the version the device
+# collected with; change it only with a re-run of the population build behind it.
+tldextract==5.3.1   # CompPhish-compatible URL features (multi-part TLDs); see note above
 # Optional enrichment / analysis
 python-whois           # whois_dns_enrich.py
 dnspython              # whois_dns_enrich.py; REQUIRED by watch_host_infra.py -- it is the only
