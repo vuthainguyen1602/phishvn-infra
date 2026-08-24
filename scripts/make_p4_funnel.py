@@ -139,7 +139,7 @@ def make_figure(fun: list[dict], acc: list[dict], proj: dict) -> str:
                     xytext=(5, -3), fontsize=8, color=INK)
         if r["removed"] != "":
             ax.annotate(f"$-${r['removed']:,}", (r["surviving"], y), textcoords="offset points",
-                        xytext=(5, 6), fontsize=7, color=ORANGE if artefact else GRAY)
+                        xytext=(5, 6), fontsize=7, color=ORANGE if artefact else INK)
     ax.set_yticks(ypos, [r["stage"] for r in fun], fontsize=8)
     ax.set_xlim(0, max(r["surviving"] for r in fun) * 1.3)
     ax.set_xlabel("registrable domains surviving the cut")
@@ -156,7 +156,7 @@ def make_figure(fun: list[dict], acc: list[dict], proj: dict) -> str:
                  ha="right")
     ax2.axvline(CALENDAR_BOUND, color=GRAY, lw=0.9, ls=(0, (2, 3)), zorder=2)
     ax2.annotate("calendar bound\n(analyse anyway)", (CALENDAR_BOUND, TRIGGER * 0.42),
-                 textcoords="offset points", xytext=(-4, 0), fontsize=7, color=GRAY, ha="right")
+                 textcoords="offset points", xytext=(-4, 0), fontsize=7, color=INK, ha="right")
 
     for key, colour, dash in (("all", BLUE, (0, (5, 2))), ("trailing", ORANGE, (0, (1, 2)))):
         p = proj[key]

@@ -295,7 +295,7 @@ def make_figure(recs, bins: list[dict], retry: list[dict], tail: dict) -> str:
         ax.annotate("backlog", (_centre(back[0]), back[0]["rate"]), color=BLUE, fontsize=8,
                     textcoords="offset points", xytext=(6, 4))
         ax.annotate("tail: recycled\naddress space", (_centre(back[-1]), back[-1]["rate"]),
-                    color=GRAY, fontsize=7, ha="center", va="bottom",
+                    color=INK, fontsize=7, ha="center", va="bottom",
                     textcoords="offset points", xytext=(0, 10))
     ax.set_xscale("log")
     ax.set_xlim(0.35, BIN_EDGES[-1] * 4)

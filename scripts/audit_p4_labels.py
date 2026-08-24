@@ -72,9 +72,16 @@ _EXTRACT = tldextract.TLDExtract(suffix_list_urls=(), include_psl_private_domain
 
 # No registration of its own: NS/TTL/WHOIS belong to the host, so P4's registration-level
 # features are undefined — counted as their own stratum, not mixed into either arm.
+# `translate.goog` added 2026-08-24 (PREREG amendment of that date). It is a rewriting PROXY, not
+# a hosting provider: `vpcp-chinhphu-vn.translate.goog` is Google Translate's view of
+# `vpcp.chinhphu.vn` (encoding `-`->`.`, `--`->`-`), so the capture carries Google's address,
+# Google's `*.googleusercontent.com` certificate and ns_count 0 whatever the proxied site is —
+# and the language evidence the gate reads is the PROXIED page's, which may be an entirely
+# legitimate one. Both admitted rows were such false positives; see the amendment.
 HOSTED_SUFFIXES = ("pages.dev", "netlify.app", "vercel.app", "web.app", "firebaseapp.com",
                    "webflow.io", "weebly.com", "wixsite.com", "blogspot.com", "github.io",
-                   "duckdns.org", "ddns.net", "r2.dev", "workers.dev", "glitch.me", "repl.co")
+                   "duckdns.org", "ddns.net", "r2.dev", "workers.dev", "glitch.me", "repl.co",
+                   "translate.goog")
 
 
 # LEXICAL subset of vn_filter.VN_TOKENS: Vietnamese common nouns/verbs only, every brand name

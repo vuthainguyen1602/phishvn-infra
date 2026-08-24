@@ -523,7 +523,7 @@ def write_funnel_accrual_figure() -> None:
                     xytext=(5, -3), fontsize=8, color=INK)
         if r["removed"] != "":
             ax.annotate(f"$-${r['removed']:,}", (r["surviving"], y), textcoords="offset points",
-                        xytext=(5, 6), fontsize=7, color=ORANGE if artefact else GRAY)
+                        xytext=(5, 6), fontsize=7, color=ORANGE if artefact else INK)
     ax.set_yticks(ypos, [r["stage"] for r in fun], fontsize=8)
     ax.set_xlim(0, max(r["surviving"] for r in fun) * 1.3)
     ax.set_xlabel("registrable domains surviving the stage")

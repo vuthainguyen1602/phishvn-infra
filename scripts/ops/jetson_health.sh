@@ -29,6 +29,13 @@ rows=(
   "urlscan_brands|urlscan_brands/watch.log|urlscan_brands/detections.csv|6"
   "ct_brands|ct_brands/watch.log|ct_brands/detections.csv|2"
   "tinnhiem_benign|tinnhiem_benign/crawl.log|tinnhiem_benign/detections.csv|12"
+  # Added 2026-08-24. The infrastructure arms were the ones missing: host_infra died at every
+  # tick for 28 h on 21-22/8 and this table had no row that could have shown it. The
+  # `_vn` supplement needs its own row because it is a separate cron line and a separate seen-set,
+  # so it can die while `ct_benign` beside it stays healthy.
+  "host_infra|host_infra/watch.log|host_infra/host_infra.csv|2"
+  "ct_benign|ct_benign/watch.log|ct_benign/detections.csv|1"
+  "ct_benign_vn|ct_benign_vn/watch.log|ct_benign_vn/detections.csv|1"
 )
 
 printf "%-18s %-22s %-24s %s\n" "COLLECTOR" "RAN (log age)" "FOUND (data age)" "ROWS"
