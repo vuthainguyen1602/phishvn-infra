@@ -27,8 +27,8 @@ the registry's, fixed by TLD policy (same artefact family as the `.vn` WHOIS gap
 no choice. Like `hosted_subdomain`, the verdict marks a unit whose registration-level features
 are undefined: not "someone else's registration" but "no registration".
 
-RUN:  python scripts/audit/audit_p4_labels.py            # audit the conditioned P4 phishing arm
-      python scripts/audit/audit_p4_labels.py --all      # audit every live urlscan_brands detection
+RUN:  python scripts/audit_p4_labels.py            # audit the conditioned P4 phishing arm
+      python scripts/audit_p4_labels.py --all      # audit every live urlscan_brands detection
 """
 from __future__ import annotations
 
@@ -477,9 +477,13 @@ def main() -> int:
         scope = "P4 conditioned phishing arm"
 
     cmap = load_content_map(args.content_map) if args.content_map else None
+    # BEFORE audit(), not after: write_wildcard_probe() runs inside audit() and writes its probe
+    # log into this same directory. On a host that carries only data/raw -- the collector, where
+    # `--all` is the natural place to run this -- the directory does not exist and the run dies
+    # after every DNS probe it just spent, with the mkdir three lines too late to help.
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     res = audit([d for d in domains if d], use_content=args.content, content_map=cmap,
                 ipmap=ipmap)
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     res.to_csv(OUT, index=False)
 
     order = ("corroborated", "credential_form", "content_confirmed", "vn_lexical",

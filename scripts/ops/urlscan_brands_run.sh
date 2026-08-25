@@ -14,6 +14,10 @@ if [ -f scripts/.env ]; then set -a; . scripts/.env; set +a; fi
 mkdir -p data/raw/urlscan_brands
 # --days 2 with a 6-hourly cron overlaps deliberately: urlscan indexes with a lag, and seen_domains
 # makes re-seeing a domain free. python3 -u so a stalled run shows progress instead of a mute log.
+# --max-captures 60 now covers new candidates AND the retry queue in one budget, so a quiet run
+# drains what a busy one deferred; before 2026-08-25 the surplus was simply lost. Quota is nowhere
+# near the constraint here (240 retrieves/day against 10,000), so raise the cap before the cadence
+# if the queue stops draining — the cadence is set by urlscan's index lag, not by this.
 # flock -E 200 makes a held lock distinguishable from a failing collector.
 rc=0; { flock -n -E 200 /tmp/phishvn-urlscan-brands.lock python3 -u scripts/watch_urlscan_brands.py --days 2 --max-captures 60 >> data/raw/urlscan_brands/watch.log 2>&1; } || rc=$?
 case "$rc" in

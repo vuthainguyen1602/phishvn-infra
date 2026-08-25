@@ -12,21 +12,10 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO"
 mkdir -p data/raw/ct_benign_vn
-# Age rotation, WIDENED 2026-08-24 (PREREG amendment of that date). It was 1/3/7/14 like
-# ct_benign_run.sh, and a rotation is still needed for the original reason: a constant target age
-# would make certificate age a label marker in the one registry group the endpoint is read on.
-# But the matching cells are (suffix x QUARTILE of the phishing arm's certificate age), and all
-# four old targets fell inside one quartile. Measured 2026-08-24 on the .vn cells: bin 1 held 26
-# rows against a demand of 12 -- 14 collected and unusable -- while bin 0 held 1 against 18, bin 3
-# held 4 against 21, and the no-certificate cell held 0 against 9. Collecting faster only made the
-# surplus bigger. These targets straddle all four quartiles of the 2026-08-24 edges
-# [0.96, 15.28, 37.74] days, weighted towards the two starved ends; the edges are quantiles and
-# will move as the phishing arm grows, so re-measure before treating them as fixed.
-# 0.4 and 0.8 rather than 0: `--age-days 0` reads the log HEAD, which the sampler's own docstring
-# warns manufactures "benign has newer certs". Twelve hours is inside the first quartile without
-# being the head. The HOURLY requirement is unchanged and widening the rotation tightens it: `% 6`
-# visits all six strata only if every hour occurs, and 24 is divisible by 6 so each target gets
-# four ticks a day. `10#` keeps bash from reading 08/09 as octal.
+# Age rotation for the .vn arm, widened 2026-08-24 (PREREG amendment of that date). Same two
+# traps as ct_benign_run.sh: HOURLY cron line only (`% 6` needs every hour to occur), and `10#`
+# against octal 08/09. The .vn cell measurements behind these targets, and the quartile edges
+# they straddle (which move as the phishing arm grows): docs/decisions/ct-benign-age-rotation.md
 case "$(( 10#$(date +%H) % 6 ))" in
   0) AGE=0.4 ;;
   1) AGE=5   ;;

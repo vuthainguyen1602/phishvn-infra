@@ -5,31 +5,16 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO"
 mkdir -p data/raw/ct_benign
-# The age is ROTATED, not fixed. A constant --age-days would hand the benign arm a constant
-# certificate age and P4 would then be comparing "3 days old" against whatever ages the phishing
-# arm happens to carry — a result decided by this wrapper rather than by the data. Cycling the
-# target across the hour of the day gives the arm an age spread the protocol can match against.
-#
-# THIS REQUIRES AN HOURLY CRON LINE. The rotation reads the hour mod 6, so it only visits all six
-# strata if every hour occurs. On the `*/2` cadence the other collectors use, the hour is always
-# even and half the targets would never be reached — the constant-age artefact this rotation
-# exists to prevent, reintroduced by the schedule instead of by the flag. Schedule it
-# `N * * * *`, not `N */2 * * *`. 24 is divisible by 6, so each target gets four ticks a day.
-# (Deployed on a `*/4` line until 2026-08-16, which pinned AGE=1 for every run — 62/63 ticks — and
-# hours 08/09 crashed outright because `date +%H` emits a leading zero that bash arithmetic reads
-# as octal. Hence the `10#` base prefix below; keep it.)
-#
-# WIDENED 2026-08-24 (PREREG amendment of that date), from 1/3/7/14. The spread above is not the
-# quantity that matters: the matching cells are (suffix x QUARTILE of the PHISHING arm's
-# certificate age), and all four old targets fell inside one quartile of those. Measured that day
-# against the 2026-08-24 edges [0.96, 15.28, 37.74] days, this arm was short 129 of its 435
-# wanted cells, 47 of them in the youngest quartile alone, while the quartile the old rotation
-# oversupplied had rows to spare. Collecting faster could not fix that; only collecting elsewhere
-# on the age axis can. The edges are quantiles and move as the phishing arm grows — re-measure
-# before treating these targets as fixed.
-# 0.4 and 0.8 rather than 0: `--age-days 0` reads the log HEAD, which the sampler's own docstring
-# warns manufactures "benign has newer certs". Twelve hours is inside the first quartile without
-# being the head.
+# Age is ROTATED across `hour % 6`, not fixed: a constant --age-days would let this wrapper, not
+# the data, decide the benign arm's certificate age. TWO TRAPS, both hit in production already:
+#   * REQUIRES AN HOURLY CRON LINE (`N * * * *`). On `*/2` the hour is always even, half the
+#     strata are never visited, and the constant-age artefact comes back via the schedule.
+#     Deployed on a `*/4` line until 2026-08-16, which pinned AGE=1 for 62/63 ticks. That
+#     clause is PARSED, not prose: check_paper_claims.py reads `*/N` + the date out of this
+#     comment and matches it against P4b's "four-hourly". Keep them on one line.
+#   * `10#` keeps bash from reading hours 08/09 as octal. Keep it.
+# The targets, the 2026-08-24 prereg widening with its cell measurements, and why 0.4/0.8 rather
+# than 0: docs/decisions/ct-benign-age-rotation.md
 case "$(( 10#$(date +%H) % 6 ))" in
   0) AGE=0.4 ;;
   1) AGE=5   ;;

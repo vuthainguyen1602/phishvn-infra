@@ -11,7 +11,7 @@ recomputed forever.
 RETRIES: CT sees a lookalike at cert issuance, often before its DNS exists, so a no-A-record
 domain is re-attempted (up to --max-attempts, while younger than --max-age-days). A domain with
 an A record is done; the append-only log is the retry state. MEASURED 2026-08-03
-(scripts/audit/audit_infra_capture.py): of 1,950 re-attempted domains ZERO gained an A record — the
+(scripts/audit_infra_capture.py): of 1,950 re-attempted domains ZERO gained an A record — the
 backlog was enriched days late, already dead. Kept (cost negligible, CT-before-DNS real for live
 detections), but do NOT claim the retry recovers captures until that number is non-zero.
 
@@ -26,8 +26,8 @@ rdap.vnnic.vn does not resolve, .vn absent from IANA RDAP bootstrap) — whois_*
 use tls_not_before as the age proxy (fresh phishing certs postdate registration by hours).
 
 RUN (cron tick on the Jetson, via host_infra_run.sh):
-  python3 scripts/collect/watch_host_infra.py
-  python3 scripts/collect/watch_host_infra.py --max-domains 10 --delay 0.2   # gentle manual run
+  python3 scripts/watch_host_infra.py
+  python3 scripts/watch_host_infra.py --max-domains 10 --delay 0.2   # gentle manual run
 """
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ FIELDS = [
     "tls_not_before", "tls_not_after", "tls_san_count",
 ]
 
-# registered_domain() moved to scripts/lib/psl.py on 2026-08-18: the strict-temporal evaluation
+# registered_domain() moved to scripts/psl.py on 2026-08-18: the strict-temporal evaluation
 # drops same-registrable-domain re-detections and must fold hosts exactly as this collector does,
 # so the two share one implementation rather than two copies that can drift apart. The unit and
 # its 2026-08-03 change of convention are documented there.
@@ -217,7 +217,7 @@ def tls_host(host: str) -> dict:
 
 # A detection older than this was already dead by the time we could reach it: measured over the
 # backlog, domains enriched a median 84.9h after detection retained an A record 11% of the time,
-# against 100% for domains reached within ~1.2h (scripts/audit/audit_infra_capture.py).
+# against 100% for domains reached within ~1.2h (scripts/audit_infra_capture.py).
 FRESH_HOURS = 24.0
 
 

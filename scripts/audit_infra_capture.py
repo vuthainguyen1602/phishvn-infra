@@ -36,7 +36,7 @@ only, must treat .vn WHOIS absence as structural (never imputed, never given a m
 indicator that is collinear with the TLD), and must draw its benign arm TLD-matched and
 time-matched against the phishing arm.
 
-RUN:  python scripts/audit/audit_infra_capture.py
+RUN:  python scripts/audit_infra_capture.py
 """
 from __future__ import annotations
 

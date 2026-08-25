@@ -52,7 +52,14 @@ for r in "${rows[@]}"; do
   if [ -f "$data" ]; then
     dage=$(( (now - $(stat -c %Y "$data")) / 3600 ))
     n=$(( $(wc -l < "$data") - 1 ))
-    found="${dage}h ago"
+    # Mark, do not diagnose. A collector can RAN=ok for days and yield nothing because its
+    # upstream is down -- ct_brands on 2026-08-24 ran every 2 h, exited clean, and produced zero
+    # for twelve days because crt.sh was serving 502 to everyone. The table said "ok 29m ago" and
+    # the only trace was a bare "298h ago" here, which reads like ordinary staleness. Twenty-four
+    # missed periods is not ordinary, so say so; whether it is a dry source (chongluadao is, by
+    # design) or a breakage is still the reader's call, exactly as the header promises.
+    if [ "$dage" -gt $(( period * 24 )) ]; then found="DRY ${dage}h (every ${period}h)"
+    else found="${dage}h ago"; fi
   else
     found="never"; n=0
   fi
@@ -68,9 +75,20 @@ left=$(grep -oE 'processed [0-9]+/[0-9]+ new VN' chongluadao_live/watch.log 2>/d
 echo "disk: $(df -h /home | tail -1 | awk '{print $3" used of "$2" ("$5")"}')   data/raw: $(du -sh . | cut -f1)"
 
 echo
-echo "recent complaints in the logs:"
-grep -hoE '\[!\][^|]{0,90}' */watch.log */crawl.log */cron.log 2>/dev/null | sort | uniq -c | sort -rn | head -6 || echo "  (none)"
-grep -hoE 'ModuleNotFoundError[^|]{0,60}' */watch.log */cron.log 2>/dev/null | sort | uniq -c | sort -rn | head -3 || true
+# WINDOWED since 2026-08-24. This used to grep each log whole, so a fault that was fixed weeks
+# ago kept being reported as a current complaint: the `psl` ModuleNotFoundError from the 21-22/8
+# incident showed for days after the fix, and on 24/8 it cost a round of SSH to work out whether
+# 2,548 crt.sh errors were history or happening now. The logs have no reliable per-line
+# timestamp, so the window is the last N lines of each log -- roughly the last day or two of
+# ticks. Anything older is history and belongs in the incident notes, not in a health report.
+TAIL_LINES=400
+echo "recent complaints (last ${TAIL_LINES} log lines per collector):"
+for l in */watch.log */crawl.log */cron.log; do
+  [ -f "$l" ] && tail -n "$TAIL_LINES" "$l"
+done 2>/dev/null | grep -hoE '\[!\][^|]{0,90}' | sort | uniq -c | sort -rn | head -6 || echo "  (none)"
+for l in */watch.log */cron.log; do
+  [ -f "$l" ] && tail -n "$TAIL_LINES" "$l"
+done 2>/dev/null | grep -hoE 'ModuleNotFoundError[^|]{0,60}' | sort | uniq -c | sort -rn | head -3 || true
 
 echo
 # The device is a manual copy, not a clone, so a new module can be left behind and a collector

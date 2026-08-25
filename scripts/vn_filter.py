@@ -118,30 +118,12 @@ def _match_tokens(d: str) -> bool:
     return bool(VN_TOKENS.search(d)) or bool(BRAND_TOKENS and BRAND_TOKENS.search(d))
 
 
-# A match on the separator-stripped spelling counts only when it is whole segments glued together:
-# it must START where a segment starts and END where one ends, and be at least this long.
-#
-# Removing separators fuses the fragments on either side, so without the alignment rule a token
-# lands inside the join constantly -- raghul-designer -> ldesign (the generic English suffix P1's
-# own token audit flags), 0q00vc-bq -> vcb, a UUID's -bccc- -> cccd. The length floor then clears
-# the residue that is aligned but still accidental (c-ccd -> cccd). Matching the fused spelling is
-# restricted to the hand-curated core: the registry-generated tier's audited precision is 0.10 on
-# the raw name already, and a fused spelling multiplies its surface (app-net -> appnet).
-#
-# Measured 2026-08-18 against both populations that matter -- 23 domains the live collector
-# admitted from the global feeds in one hour, and the ChongLuaDao mirror, which is
-# Vietnamese-targeting by provenance -- the trade is:
-#   no rule at all           9 real / 23 junk (33 admissions that hour)
-#   aligned + floor 6        9 real /  0 junk
-# Validating against ChongLuaDao alone hides all of this: a corpus where every entry is
-# Vietnamese-targeting cannot exhibit a false positive.
-#
-# What this rule is worth, measured rather than argued: 5 marginal admissions on the ChongLuaDao
-# mirror (vietin-bank, ngan-hang-he-thong, khach-hang-ca-nhan, nang-cap-khach-hang,
-# cong-thanh-toan-the24h) and 3 on the global feeds, all via `tiktokshop`. An earlier version of
-# this comment justified the rule by the mb-bank / tp-bank / sea-bank class; those four strings
-# were invented for the tests and appear in neither feed. The only real hyphen-split bank name in
-# either corpus is my-acb-bank.com, and the raw path catches it through \bacb\b without this rule.
+# A match on the separator-stripped spelling counts only when it is whole segments glued
+# together: it must START where a segment starts, END where one ends, and be at least this long.
+# Restricted to the hand-curated core -- the registry tier's audited precision is 0.10 on the raw
+# name already, and a fused spelling multiplies its surface (app-net -> appnet).
+# The 9-real/0-junk measurement behind the floor of 6, and the correction to an earlier and wrong
+# justification for it: docs/decisions/vn-filter-aligned-min-token.md
 ALIGNED_MIN_TOKEN = 6
 
 

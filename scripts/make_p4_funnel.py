@@ -25,7 +25,7 @@ with a trend: the feed's rate is visibly not constant, and a cleverer extrapolat
 the reader to believe a date the data cannot support. Two rates are drawn -- the whole-window
 average and the trailing fortnight -- and where they disagree is the honest uncertainty.
 
-    python scripts/assets/make_p4_funnel.py
+    python scripts/make_p4_funnel.py
 
 Writes data/processed/p4/p4_funnel.csv, data/processed/p4/p4_accrual.csv,
 papers/P4_infra/figures/funnel_accrual.pdf and papers/P4_infra/sections/gen_funnel.tex.
@@ -233,13 +233,36 @@ def make_tex(fun: list[dict], acc: list[dict], proj: dict) -> None:
     # deviation entries. They were typed by hand and went stale the moment the capture moved
     # (7.2 -> 7.1, 181 -> 186 on 2026-08-22), so they read from here now. The dated entries keep
     # their literals: what they record is what was true on their date.
+    _vn_ph = _vn_phish_count()
     macros = "\n".join([
         f"\\newcommand{{\\AccrualRate}}{{{p_all['rate']:.1f}}}",
         f"\\newcommand{{\\AccrualTrailing}}{{{p_tr['rate']:.1f}}}",
         f"\\newcommand{{\\AdmittedN}}{{{final}}}",
         f"\\newcommand{{\\BenignVnN}}{{{_benign_vn_count()}}}",
+        # The `.vn` phishing count went stale exactly the way the accrual rate had: 33 was typed
+        # into the perishability paragraph, the capture moved to 35, and nothing complained
+        # because a bare literal is bound to nothing. Its share and its per-day rate are derived
+        # here too, so the prose never has to round "one in six" by hand again.
+        f"\\newcommand{{\\VnPhishN}}{{{_vn_ph}}}",
+        f"\\newcommand{{\\VnPhishShare}}{{{round(100 * _vn_ph / final) if final else 0}}}",
+        f"\\newcommand{{\\VnPhishRate}}{{{_vn_ph / cal_days:.1f}}}",
+        # Wildcard share of the screened population (candidates less hosted subdomains), the
+        # figure the abstract quotes and dates to the snapshot.
+        f"\\newcommand{{\\WildcardShare}}{{{round(100 * fun[2]['removed'] / fun[1]['surviving']) if fun[1]['surviving'] else 0}}}",
     ])
     write_generated(os.path.join(SEC, "gen_funnel_macros.tex"), macros)
+
+
+def _vn_phish_count() -> int:
+    """`.vn` names in the admitted phishing arm. Hand-typed as 33 until 2026-08-24, when the
+    sync moved it to 35 and the sentence quoting it stayed put."""
+    import pandas as _pd
+    path = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
+    if not os.path.exists(path):
+        return 0
+    d = _pd.read_csv(path, low_memory=False)
+    ph = d[d["arm"] == "phish"]
+    return int(ph["registered_domain"].astype(str).str.endswith(".vn").sum())
 
 
 def _benign_vn_count() -> int:

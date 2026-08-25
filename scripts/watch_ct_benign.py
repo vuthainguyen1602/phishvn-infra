@@ -39,10 +39,10 @@ SEQUENTIALLY from the age offset until `--target` names are found or `--max-entr
 instead of the few batches the matched arm draws. It fills `.vn` matching cells only; the
 analysis never draws it into off-`.vn` cells. The default stratum is unchanged by this flag.
 RUN:
-  python scripts/collect/watch_ct_benign.py --age-days 3 --batches 4      # one cron tick
-  python scripts/collect/watch_ct_benign.py --stratum vn --age-days 3    # the .vn supplement
-  python scripts/collect/watch_ct_benign.py --age-days 14 --batches 2     # older stratum
-  python scripts/collect/watch_ct_benign.py --dry-run                     # sample, print, write nothing
+  python scripts/watch_ct_benign.py --age-days 3 --batches 4      # one cron tick
+  python scripts/watch_ct_benign.py --stratum vn --age-days 3    # the .vn supplement
+  python scripts/watch_ct_benign.py --age-days 14 --batches 2     # older stratum
+  python scripts/watch_ct_benign.py --dry-run                     # sample, print, write nothing
 """
 from __future__ import annotations
 

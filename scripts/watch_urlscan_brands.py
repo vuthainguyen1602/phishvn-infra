@@ -14,9 +14,23 @@ hit is a candidate — the official-domain filter plus downstream labelling do t
 `page.asnname`, `page.mimeType` return HTTP 400; `total` saturates at 10,000; search quota is
 1,000/day (~one search per token per run).
 
+THE CAPTURE BUDGET IS A QUEUE, NOT A CLIFF (2026-08-25). --max-captures bounds wall-clock, not
+quota — captures cost `retrieve` (10,000/day) and a 6-hourly cron spends at most 240 of it. But a
+run that found more than the cap used to write the surplus straight into seen_domains.txt with
+found=0, and seen_domains is what the next run filters on, so those domains could never be
+captured again: 13 of 121 runs ended "N new, 60 captured" and 458 of 2,886 rows carry an identity
+with no page behind it. urlscan keeps the scan permanently, so nothing about that loss was
+necessary. Every attempt is now logged to captures.csv (append-only, one row per try, the same
+ledger shape the CT feed's capture bridge keeps), and each run spends whatever budget the new
+candidates leave on the identities an earlier run could not reach, oldest first.
+
+detections.csv is therefore the identity record — one row per domain, at first detection, never
+rewritten — and captures.csv is where a later capture of that domain lands. Anything that wants
+page content must read BOTH; the corpus manifest builder does.
+
 RUN:
-  python scripts/collect/watch_urlscan_brands.py --days 2 --max-captures 60
-  python scripts/collect/watch_urlscan_brands.py --days 30 --no-capture   # backfill identities only
+  python scripts/watch_urlscan_brands.py --days 2 --max-captures 60
+  python scripts/watch_urlscan_brands.py --days 30 --no-capture   # backfill identities only
 """
 from __future__ import annotations
 
@@ -43,6 +57,11 @@ H = {"User-Agent": "Mozilla/5.0 (research; contact nvthai@utc2.edu.vn)"}
 SEARCH = "https://urlscan.io/api/v1/search/"
 OUTDIR = os.path.join("data", "raw", "urlscan_brands")
 SEEN_PATH = os.path.join(OUTDIR, "seen_domains.txt")
+
+# One row per capture ATTEMPT, so the retry state is derivable and the history auditable — the
+# same ledger shape ct_capture_bridge.py keeps for the CT feed.
+CAP_FIELDS = ["domain", "brand", "attempt", "attempted_at", "scan_uuid", "found",
+              "dom_file", "shot_file", "js_count", "title"]
 DET_PATH = os.path.join(OUTDIR, "detections.csv")
 DOM_DIR = os.path.join("data", "raw", "landing_live")
 SHOT_DIR = os.path.join("data", "raw", "landing_live_shots")
@@ -213,6 +232,63 @@ def download_capture(uuid: str, key: str) -> dict:
     return out
 
 
+def capture_ledger(path: str) -> tuple[dict[str, int], set[str]]:
+    """Attempts per domain and the set already captured, read back from the append-only log."""
+    tries: dict[str, int] = {}
+    done: set[str] = set()
+    if not os.path.exists(path):
+        return tries, done
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            d = (r.get("domain") or "").strip().lower()
+            if not d:
+                continue
+            tries[d] = tries.get(d, 0) + 1
+            if str(r.get("found") or "").strip() == "1":
+                done.add(d)
+    return tries, done
+
+
+def pending_captures(det_path: str, tries: dict[str, int], done: set[str],
+                     max_attempts: int, skip: set[str]) -> list[tuple[str, str, str, str]]:
+    """Identities with no page behind them yet: the run that found them ran out of budget, or the
+    retrieve failed. Oldest first — the lure that has been up longest is the one closest to going
+    dark, and ordering is the only real choice here: the budget decides how many, not which.
+
+    A row with no scan_uuid is skipped rather than retried forever; there is nothing to fetch.
+    max_attempts bounds the other dead end, a scan urlscan has since deleted or made private.
+    `skip` holds the domains this run has already tried: without it the drain immediately
+    re-fetches the candidate that just failed a few lines above, burning two of its attempts and
+    a slot of budget on the same scan in the same minute."""
+    out: list[tuple[str, str, str, str]] = []
+    if not os.path.exists(det_path):
+        return out
+    with open(det_path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            dom = (r.get("domain") or "").strip().lower()
+            uuid = (r.get("scan_uuid") or "").strip()
+            if not dom or not uuid or dom in done or dom in skip:
+                continue
+            if str(r.get("found") or "").strip() == "1":
+                continue
+            if tries.get(dom, 0) >= max_attempts:
+                continue
+            out.append(((r.get("first_detected") or ""), dom, (r.get("brand") or ""), uuid))
+    out.sort()
+    return out
+
+
+def log_attempt(writer, fh, dom: str, brand: str, attempt: int, when: str,
+                uuid: str, got: dict) -> None:
+    """One row per try, flushed immediately: a crash between the DOM landing on disk and the
+    ledger recording it would leave the file orphaned and the domain queued forever."""
+    writer.writerow({"domain": dom, "brand": brand, "attempt": attempt, "attempted_at": when,
+                     "scan_uuid": uuid, "found": got.get("found", 0),
+                     "dom_file": got.get("dom_file", ""), "shot_file": got.get("shot_file", ""),
+                     "js_count": got.get("js_count", 0), "title": got.get("title", "")})
+    fh.flush()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=2, help="search window; 2 suits a 6-hourly cron")
@@ -220,6 +296,9 @@ def main() -> int:
     ap.add_argument("--max-captures", type=int, default=60,
                     help="cap DOM/screenshot downloads per run (wall-clock, not quota)")
     ap.add_argument("--no-capture", action="store_true", help="record identities only")
+    ap.add_argument("--max-attempts", type=int, default=3,
+                    help="give up on an identity after this many capture tries (urlscan can "
+                         "delete or unlist a scan; retrying it forever starves the queue)")
     ap.add_argument("--no-content", action="store_true",
                     help="hostname-token passes only, skipping the page-content queries")
     ap.add_argument("--delay", type=float, default=1.2, help="seconds between searches")
@@ -269,29 +348,75 @@ def main() -> int:
         time.sleep(args.delay)
 
     print(f"[i] {len(args.tokens)} tokens + {0 if args.no_content else len(CONTENT_QUERIES)} content queries, window {args.days}d -> {len(cand)} new candidate domains")
-    if not cand:
-        return 0
 
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     n_cap = 0
-    with open(det_path, "a", newline="", encoding="utf-8") as f, \
-            open(seen_path, "a", encoding="utf-8") as sf:
-        w = csv.DictWriter(f, fieldnames=FIELDS)
-        if fresh:
-            w.writeheader()
-        for dom, row in cand.items():
-            row["first_detected"] = now
-            if not args.no_capture and n_cap < args.max_captures and row["scan_uuid"]:
-                row.update(download_capture(row["scan_uuid"], key))
+    cap_path = os.path.join(args.outdir, "captures.csv")
+    tries, done = capture_ledger(cap_path)
+    attempted: set[str] = set()      # tried in THIS run — one try per domain per run
+    if not os.path.exists(cap_path):
+        with open(cap_path, "w", newline="", encoding="utf-8") as cf:
+            csv.DictWriter(cf, fieldnames=CAP_FIELDS).writeheader()
+
+    # New candidates go first. They are the freshest lures on the list, so a capture spent on one
+    # is the likeliest to find a page still standing; the queue below is where the rest go, and it
+    # keeps them rather than losing them, which is the whole change.
+    if cand:
+        with open(det_path, "a", newline="", encoding="utf-8") as f, \
+                open(seen_path, "a", encoding="utf-8") as sf, \
+                open(cap_path, "a", newline="", encoding="utf-8") as cf:
+            w = csv.DictWriter(f, fieldnames=FIELDS)
+            cw = csv.DictWriter(cf, fieldnames=CAP_FIELDS)
+            if fresh:
+                w.writeheader()
+            for dom, row in cand.items():
+                row["first_detected"] = now
+                if not args.no_capture and n_cap < args.max_captures and row["scan_uuid"]:
+                    row.update(download_capture(row["scan_uuid"], key))
+                    n_cap += 1
+                    # the ledger counts are kept current in-run: read once at startup they would
+                    # number every attempt of this run "1" and hide a repeat try from the cap
+                    tries[dom] = tries.get(dom, 0) + 1
+                    attempted.add(dom)
+                    if row.get("found"):
+                        done.add(dom)
+                    log_attempt(cw, cf, dom, row["brand"], tries[dom], now,
+                                row["scan_uuid"], row)
+                else:
+                    row.update({"found": 0, "dom_file": "", "shot_file": "", "js_count": 0,
+                                "title": ""})
+                w.writerow({k: row.get(k, "") for k in FIELDS})
+                sf.write(dom + "\n")
+                print(f"[+] {dom} ({row['brand']}) -> {'captured' if row.get('found') else 'queued'}")
+                f.flush()
+                sf.flush()
+
+    # Whatever budget the new candidates left is spent on identities an earlier run could not
+    # reach. detections.csv is NOT rewritten when one of these lands: it is the identity record,
+    # and a paper built on it must not shift under a later capture. captures.csv carries the page.
+    n_retry = n_ok = 0
+    queue = ([] if args.no_capture
+             else pending_captures(det_path, tries, done, args.max_attempts, attempted))
+    if queue and n_cap < args.max_captures:
+        with open(cap_path, "a", newline="", encoding="utf-8") as cf:
+            cw = csv.DictWriter(cf, fieldnames=CAP_FIELDS)
+            for first, dom, brand, uuid in queue:
+                if n_cap >= args.max_captures:
+                    break
+                got = download_capture(uuid, key)
                 n_cap += 1
-            else:
-                row.update({"found": 0, "dom_file": "", "shot_file": "", "js_count": 0, "title": ""})
-            w.writerow({k: row.get(k, "") for k in FIELDS})
-            sf.write(dom + "\n")
-            print(f"[+] {dom} ({row['brand']}) -> {'captured' if row.get('found') else 'recorded'}")
-            f.flush()
-            sf.flush()
-    print(f"Done: {len(cand)} new, {n_cap} captured -> {det_path}")
+                n_retry += 1
+                n_ok += 1 if got.get("found") else 0
+                tries[dom] = tries.get(dom, 0) + 1
+                attempted.add(dom)
+                if got.get("found"):
+                    done.add(dom)
+                log_attempt(cw, cf, dom, brand, tries[dom], now, uuid, got)
+                print(f"[r] {dom} ({brand}, first seen {first[:10]}, try {tries[dom]}) -> "
+                      f"{'captured' if got.get('found') else 'missed'}")
+    left = max(0, len(queue) - n_retry)
+    print(f"Done: {len(cand)} new, {n_cap} captured "
+          f"({n_retry} from the queue, {n_ok} landed, {left} still waiting) -> {det_path}")
     return 0
 
 

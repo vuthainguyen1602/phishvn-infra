@@ -9,8 +9,8 @@ availability table) so the paper tracks accumulation honestly, and it refuses to
 until the pre-registered trigger (n ≥ 500 conditioned phishing registrable domains) — at which
 point the same command fills the main-comparison table with no new decisions left to make.
 
-    python scripts/assets/make_p4_assets.py            # regenerate monitoring assets; fit iff triggered
-    python scripts/assets/make_p4_assets.py --smoke    # prove the fitting path end-to-end on
+    python scripts/make_p4_assets.py            # regenerate monitoring assets; fit iff triggered
+    python scripts/make_p4_assets.py --smoke    # prove the fitting path end-to-end on
                                                 # LABEL-PERMUTED data; writes only to
                                                 # data/interim/p4_smoke/, never into papers/
 
@@ -166,7 +166,7 @@ def build_population() -> tuple[pd.DataFrame, dict]:
         print(f"[!] {CONTENT_MAP} absent — the 'content_confirmed' class is UNAVAILABLE and the "
               "phishing arm is undercounted by every domain whose only evidence is that it renders "
               "Vietnamese. The captures live on the collector; export the map there with "
-              f"`python scripts/audit/audit_p4_labels.py --export-content {CONTENT_MAP}` and sync it.",
+              f"`python scripts/audit_p4_labels.py --export-content {CONTENT_MAP}` and sync it.",
               file=sys.stderr)
 
     # Capture-time addresses per registrable domain, unioned across attempts: a domain that ever
