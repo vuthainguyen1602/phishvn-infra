@@ -57,7 +57,7 @@ DET_PATH = os.path.join(OUTDIR, "detections.csv")
 DOM_DIR = os.path.join("data", "raw", "landing_live")
 SHOT_DIR = os.path.join("data", "raw", "landing_live_shots")
 JS_DIR = os.path.join("data", "raw", "landing_live_js")   # external JS bodies per scan uuid
-H = {"User-Agent": "Mozilla/5.0 (research; contact nvthai@utc2.edu.vn)"}
+H = {"User-Agent": "Mozilla/5.0 (research; contact thaivn_ph@utc.edu.vn)"}
 MAX_JS = 15            # cap external JS files saved per page (edge storage / quota)
 MAX_JS_BYTES = 600_000  # skip a single JS body larger than this
 

@@ -52,6 +52,14 @@ What is measured, and on what:
   (self-signed, expired, name mismatch) an unverified retry records `tls_present=1,
   tls_verified=0` with the certificate fields blank.
 
+The watcher sends no HTTP request to a measured host: its contact is the DNS and WHOIS lookups
+above plus one TLS handshake that reads the served certificate and closes. Requests to the
+third-party services the collectors poll — crt.sh and urlscan.io — do carry a research
+User-Agent naming a contact address, so an operator who wants to ask about the traffic can. That
+string changed from `nvthai@utc2.edu.vn` to `thaivn_ph@utc.edu.vn` on 2026-08-28 when the
+author's institutional address moved; nothing else about the requests changed, and no row is
+affected either way.
+
 Raw values are stored, never derived booleans. NXDOMAIN, SERVFAIL and timeout are all recorded as
 an empty field; the watcher refuses to start if `dnspython` is missing, so an empty field is always
 a real answer. The registrable domain is folded with the Public Suffix List **including its

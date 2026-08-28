@@ -72,7 +72,7 @@ from audit_p4_labels import (HOSTED_SUFFIXES, VN_LEXICAL, load_blocklists,  # no
 # off. Neither answer is wrong — the pair is the measurement, see under_private_suffix.
 _ICANN_ONLY = tldextract.TLDExtract(suffix_list_urls=(), include_psl_private_domains=False)
 
-H = {"User-Agent": "Mozilla/5.0 (research; contact nvthai@utc2.edu.vn)"}
+H = {"User-Agent": "Mozilla/5.0 (research; contact thaivn_ph@utc.edu.vn)"}
 LOG_LIST = "https://www.gstatic.com/ct/log_list/v3/log_list.json"
 STRATA = {"matched": "ct_benign", "vn": "ct_benign_vn"}
 

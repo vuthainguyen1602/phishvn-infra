@@ -51,7 +51,6 @@ dnspython              # whois_dns_enrich.py; REQUIRED by watch_host_infra.py --
                        # way that collector asks a DNS question, and without it every row it
                        # writes records "no A record" for a domain nothing ever queried
 opencv-python          # qr_decode.py (or: pyzbar + pillow)
-underthesea            # vi_segment.py (or: py_vncorenlp + Java for best quality)
 statsmodels            # analyze_p3.py (GEE/McNemar)
 # Edge export (optional, P7)
 onnx

@@ -18,8 +18,15 @@ mkdir -p data/raw/urlscan_brands
 # drains what a busy one deferred; before 2026-08-25 the surplus was simply lost. Quota is nowhere
 # near the constraint here (240 retrieves/day against 10,000), so raise the cap before the cadence
 # if the queue stops draining — the cadence is set by urlscan's index lag, not by this.
+#
+# --queue-since holds the retry queue to identities detected on or after that date. The queue
+# opened with a backlog reaching back to the feed's first day, and draining all of it drops several
+# hundred captures into the content manifest at once — a decision about the corpus, taken by
+# whoever rebuilds it, not by a cron tick. Deferred rows stay in detections.csv and stay queueable:
+# clear the date and the next tick drains them. Set it to the date the current corpus was pinned.
+QUEUE_SINCE="${QUEUE_SINCE:-2026-08-25}"
 # flock -E 200 makes a held lock distinguishable from a failing collector.
-rc=0; { flock -n -E 200 /tmp/phishvn-urlscan-brands.lock python3 -u scripts/watch_urlscan_brands.py --days 2 --max-captures 60 >> data/raw/urlscan_brands/watch.log 2>&1; } || rc=$?
+rc=0; { flock -n -E 200 /tmp/phishvn-urlscan-brands.lock python3 -u scripts/watch_urlscan_brands.py --days 2 --max-captures 60 --queue-since "$QUEUE_SINCE" >> data/raw/urlscan_brands/watch.log 2>&1; } || rc=$?
 case "$rc" in
   0) ;;
   200) echo "[!] $(date -Is) tick skipped (previous run still holding the lock)" >> data/raw/urlscan_brands/watch.log ;;

@@ -53,7 +53,7 @@ except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 from watch_chongluadao import clean_title, fetch_external_js  # noqa: E402  (shared capture helpers)
 
-H = {"User-Agent": "Mozilla/5.0 (research; contact nvthai@utc2.edu.vn)"}
+H = {"User-Agent": "Mozilla/5.0 (research; contact thaivn_ph@utc.edu.vn)"}
 SEARCH = "https://urlscan.io/api/v1/search/"
 OUTDIR = os.path.join("data", "raw", "urlscan_brands")
 SEEN_PATH = os.path.join(OUTDIR, "seen_domains.txt")
@@ -250,7 +250,8 @@ def capture_ledger(path: str) -> tuple[dict[str, int], set[str]]:
 
 
 def pending_captures(det_path: str, tries: dict[str, int], done: set[str],
-                     max_attempts: int, skip: set[str]) -> list[tuple[str, str, str, str]]:
+                     max_attempts: int, skip: set[str],
+                     since: str = "") -> list[tuple[str, str, str, str]]:
     """Identities with no page behind them yet: the run that found them ran out of budget, or the
     retrieve failed. Oldest first — the lure that has been up longest is the one closest to going
     dark, and ordering is the only real choice here: the budget decides how many, not which.
@@ -259,7 +260,15 @@ def pending_captures(det_path: str, tries: dict[str, int], done: set[str],
     max_attempts bounds the other dead end, a scan urlscan has since deleted or made private.
     `skip` holds the domains this run has already tried: without it the drain immediately
     re-fetches the candidate that just failed a few lines above, burning two of its attempts and
-    a slot of budget on the same scan in the same minute."""
+    a slot of budget on the same scan in the same minute.
+
+    `since` (YYYY-MM-DD, empty = no limit) holds the queue to identities first detected on or
+    after that date. The queue opened with a backlog reaching back to the day the feed started,
+    and draining all of it puts several hundred captures into the corpus at once -- which is a
+    decision about the corpus, not about the collector, and belongs to whoever rebuilds the
+    content manifest rather than to a cron tick. With a date set, the deferred rows stay in
+    detections.csv and stay queueable: nothing is dropped, and lifting the date later drains
+    them."""
     out: list[tuple[str, str, str, str]] = []
     if not os.path.exists(det_path):
         return out
@@ -272,6 +281,10 @@ def pending_captures(det_path: str, tries: dict[str, int], done: set[str],
             if str(r.get("found") or "").strip() == "1":
                 continue
             if tries.get(dom, 0) >= max_attempts:
+                continue
+            # string compare on ISO-8601: first_detected is written by this script as
+            # "%Y-%m-%dT%H:%M:%S", so the first ten characters sort as dates without parsing
+            if since and (r.get("first_detected") or "")[:10] < since:
                 continue
             out.append(((r.get("first_detected") or ""), dom, (r.get("brand") or ""), uuid))
     out.sort()
@@ -296,6 +309,10 @@ def main() -> int:
     ap.add_argument("--max-captures", type=int, default=60,
                     help="cap DOM/screenshot downloads per run (wall-clock, not quota)")
     ap.add_argument("--no-capture", action="store_true", help="record identities only")
+    ap.add_argument("--queue-since", default="", metavar="YYYY-MM-DD",
+                    help="only retry identities first detected on or after this date; older ones "
+                         "stay queued but untouched, so a backlog does not enter the corpus on a "
+                         "cron tick's say-so (empty: no limit)")
     ap.add_argument("--max-attempts", type=int, default=3,
                     help="give up on an identity after this many capture tries (urlscan can "
                          "delete or unlist a scan; retrying it forever starves the queue)")
@@ -396,7 +413,15 @@ def main() -> int:
     # and a paper built on it must not shift under a later capture. captures.csv carries the page.
     n_retry = n_ok = 0
     queue = ([] if args.no_capture
-             else pending_captures(det_path, tries, done, args.max_attempts, attempted))
+             else pending_captures(det_path, tries, done, args.max_attempts, attempted,
+                                   args.queue_since))
+    # counted HERE, before the drain: the loop below adds every domain it touches to `done` and
+    # `attempted`, so asking the same question afterwards returns the deferred rows only and the
+    # difference collapses to zero
+    n_held = 0
+    if args.queue_since and not args.no_capture:
+        n_held = max(0, len(pending_captures(det_path, tries, done, args.max_attempts,
+                                             attempted)) - len(queue))
     if queue and n_cap < args.max_captures:
         with open(cap_path, "a", newline="", encoding="utf-8") as cf:
             cw = csv.DictWriter(cf, fieldnames=CAP_FIELDS)
@@ -415,8 +440,9 @@ def main() -> int:
                 print(f"[r] {dom} ({brand}, first seen {first[:10]}, try {tries[dom]}) -> "
                       f"{'captured' if got.get('found') else 'missed'}")
     left = max(0, len(queue) - n_retry)
+    held = f", {n_held} held back by --queue-since {args.queue_since}" if n_held else ""
     print(f"Done: {len(cand)} new, {n_cap} captured "
-          f"({n_retry} from the queue, {n_ok} landed, {left} still waiting) -> {det_path}")
+          f"({n_retry} from the queue, {n_ok} landed, {left} still waiting{held}) -> {det_path}")
     return 0
 
 

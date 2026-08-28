@@ -114,8 +114,6 @@ DEPOSIT = [
     ("data/accrual.csv", ACCRUAL_CSV, "rows", "Cumulative admitted domains by detection day"),
     ("data/label_audit.csv", LABEL_AUDIT_CSV, "rows",
      "Verdict, evidence flags, removal stage per candidate"),
-    ("data/content_map.csv", CONTENT_MAP_CSV, "rows",
-     "Content evidence: renders Vietnamese, credential form"),
     ("data/wildcard_probe.csv", PROBE_CSV, "rows",
      "Wildcard probe: suffix, probe name, date, answers"),
     ("data/ct_benign_seen.txt", os.path.join(ROOT, "data", "raw", "ct_benign", "seen_domains.txt"),
@@ -297,6 +295,30 @@ def p1_overlap(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
     return out
 
 
+def whois_gap(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
+    """How far a registry's publication policy alone moves the single bit "has any WHOIS field".
+    VNNIC publishes neither WHOIS nor RDAP, so the bit is empty for every `.vn` domain whatever
+    it is; outside `.vn` it is usually present. Background states the size of that gap, and it
+    has to be measured rather than asserted: an arm whose `.vn` share differs from the other's
+    differs on this bit before any property of the domains is considered. Descriptive shares,
+    not a separability score -- this is a data article."""
+    cols = [c for c in ("whois_created", "whois_expires", "whois_updated", "registrar",
+                        "whois_age_days") if c in df.columns]
+    if not cols or pop.empty:
+        return {}
+    has = df.groupby("registered_domain")[cols].apply(lambda g: g.notna().any().any())
+    p = pop.assign(any_whois=pop["registered_domain"].map(has).fillna(False),
+                   is_vn=pop["registered_domain"].astype(str).str.endswith(".vn"))
+    vn = p[p["is_vn"]]
+    out = {"PbWhoisVnDomains": fmt(len(vn)),
+           "PbWhoisVnPresent": fmt(int(vn["any_whois"].sum()))}
+    for arm, name in (("benign", "Benign"), ("phish", "Phish")):
+        sub = p[(p["arm"] == arm) & ~p["is_vn"]]
+        out[f"PbWhoisNonVn{name}"] = str(round(100 * sub["any_whois"].mean())) if len(sub) else "0"
+    print("[i] WHOIS gap: " + ", ".join(f"{k}={v}" for k, v in out.items()))
+    return out
+
+
 def write_funnel_table() -> None:
     """The phishing-arm funnel, one row per stage, straight from funnel.csv."""
     fun = list(csv.DictReader(open(FUNNEL_CSV, newline="", encoding="utf-8")))
@@ -397,12 +419,21 @@ def write_availability(pop: pd.DataFrame) -> None:
 
 def write_benign_age(pop: pd.DataFrame) -> None:
     be_age = pop[(pop["arm"] == "benign")][["captured_at", "cert_age_days"]].dropna()
-    fix = pd.Timestamp("2026-08-16")
+    # Three regimes, not two. 2026-08-16: the cron went hourly, so `hour % 4` could finally visit
+    # all four targets instead of being pinned at 1 d by a */4 line. 2026-08-24: the four targets
+    # turned out to sit inside ONE quartile of the phishing arm's certificate age, starving three
+    # of the four matching cells, so the rotation widened to six over `hour % 6`. A reader matching
+    # on certificate age has to know which window a row came from; collapsing the last two would
+    # average a distribution that was deliberately changed.
+    fix, widen = pd.Timestamp("2026-08-16"), pd.Timestamp("2026-08-24")
     rows = []
     for label, sub in (("collected before 2026-08-16 (target age pinned at 1\\,d)",
                         be_age[be_age["captured_at"] < fix]),
-                       ("collected 2026-08-16 or later (rotation over 1/3/7/14\\,d)",
-                        be_age[be_age["captured_at"] >= fix])):
+                       ("2026-08-16 to 2026-08-23 (rotation over 1/3/7/14\\,d)",
+                        be_age[(be_age["captured_at"] >= fix)
+                               & (be_age["captured_at"] < widen)]),
+                       ("collected 2026-08-24 or later (rotation over 0.4/5/0.8/25/45/75\\,d)",
+                        be_age[be_age["captured_at"] >= widen])):
         if len(sub):
             q = sub["cert_age_days"].quantile([0.25, 0.5, 0.75])
             rows.append(f"{label} & {fmt(len(sub))} & {q[0.25]:.1f} & {q[0.5]:.1f} & "
@@ -413,8 +444,8 @@ def write_benign_age(pop: pd.DataFrame) -> None:
         os.path.join(SEC, "tab_benign_age.tex"),
         "\\begin{table}[h]\\centering\\footnotesize\n"
         "\\caption{Certificate age at capture in the conditioned \\nolinkurl{ct_benign} arm "
-        "(rows with a certificate), before and after the sampler's age rotation was repaired; "
-        "quartiles in days.}\n"
+        "(rows with a certificate), across the three regimes of the sampler's age rotation: "
+        "pinned, repaired, then widened; quartiles in days.}\n"
         "\\label{tab:benignage}\n"
         "\\begin{tabular}{lcccc}\\toprule\n"
         "Collection window & $n$ & Q1 & median & Q3 \\\\ \\midrule\n"
@@ -596,7 +627,9 @@ def main() -> int:
     write_sources_table(df, pop)
     keys = write_counts(df, pop, funnel)
     write_perish(df)
-    macros = write_macros(keys, p1_overlap(df, pop))
+    extra = p1_overlap(df, pop)
+    extra.update(whois_gap(df, pop))
+    macros = write_macros(keys, extra)
     print("[i] macros: " + ", ".join(f"{k}={v}" for k, v in macros.items()))
     write_funnel_table()
     write_verdicts_table(df)
