@@ -3,29 +3,27 @@
 audit_p4_labels.py — is P4's phishing arm actually phishing?
 
 urlscan's free tier cannot filter `verdicts.overall.malicious` (watch_urlscan_brands.py:23), so
-`label=phish` in detections.csv really means "hostname with a Vietnamese brand token that urlscan
-happened to scan". The feed's `is_official()` correction is exact-domain only: it holds
-`bidv.com.vn` but not `bidv.vn`, and knows nothing of `sepay.vn`, `teko.vn`, `vbsp.vn`. P4 reads
-the label as ground truth, so this script measures the damage before the pre-registered n>=500
-trigger locks it in — using only evidence INDEPENDENT of infrastructure (Tranco, the project's
-allowlists, the three blocklists on disk). DNS/TLS/hosting are P4's dependent variables; a label
-derived from them would be circular.
+`label=phish` really means "hostname with a Vietnamese brand token that urlscan happened to scan".
+The feed's `is_official()` correction is exact-domain only: it holds `bidv.com.vn` but not
+`bidv.vn`, and knows nothing of `sepay.vn`, `teko.vn`, `vbsp.vn`. P4 reads the label as ground
+truth, so this measures the damage before the registered n>=500 trigger locks it in — using only
+evidence INDEPENDENT of infrastructure (Tranco, the project's allowlists, the three blocklists on
+disk), since DNS/TLS/hosting are P4's dependent variables and a label derived from them would be
+circular.
 
-Two questions, kept separate: EXCLUSION (positive evidence of a legitimate operator — Tranco
-rank, allowlist hit) vs CORROBORATION (an independent blocklist named it — ChongLuaDao,
-OpenPhish, Tin Nhiem Mang). Neither -> UNCORROBORATED, the honest state for most of this feed:
-reporting it as phishing is the audited error, but silently dropping it would make the arm look
-clean rather than small, so it prints as its own row.
+Two questions, kept separate: EXCLUSION (positive evidence of a legitimate operator) vs
+CORROBORATION (an independent blocklist named it). Neither -> UNCORROBORATED, the honest state for
+most of this feed: reporting it as phishing is the audited error, but silently dropping it would
+make the arm look clean rather than small, so it prints as its own row.
 
 ONE DELIBERATE EXCEPTION to the no-DNS rule: the registry-wildcard guard. dotPH resolves any
 unregistered `.ph`/`.com.ph` name to its ParkLogic parking IP (45.79.222.138, observed 2026-08-16
-when 797 brand-token ".ph phishing domains" turned out to be this wildcard: one shared IP, zero
-NS/MX, unverifiable cert, capture = dotPH's "Redirecting..." ad page). Probe a name that cannot
-have been registered; if it resolves, the suffix wildcards, and a candidate whose addresses sit
-inside the wildcard's has NO REGISTRATION AT ALL. Not the forbidden circularity: the address is
-the registry's, fixed by TLD policy (same artefact family as the `.vn` WHOIS gap) — no phisher,
-no choice. Like `hosted_subdomain`, the verdict marks a unit whose registration-level features
-are undefined: not "someone else's registration" but "no registration".
+when 797 brand-token ".ph phishing domains" turned out to be this: one shared IP, zero NS/MX,
+unverifiable cert, capture = dotPH's "Redirecting..." ad page). Probe a name that cannot have been
+registered; if it resolves, the suffix wildcards, and a candidate inside the wildcard's addresses
+has NO REGISTRATION AT ALL. Not the forbidden circularity: the address is the registry's, fixed by
+TLD policy (the same artefact family as the `.vn` WHOIS gap) — no phisher, no choice. Like
+`hosted_subdomain`, the verdict marks a unit whose registration-level features are undefined.
 
 RUN:  python scripts/audit_p4_labels.py            # audit the conditioned P4 phishing arm
       python scripts/audit_p4_labels.py --all      # audit every live urlscan_brands detection
@@ -44,10 +42,12 @@ import sys
 import pandas as pd
 import tldextract
 
+from psl import apex
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
@@ -56,28 +56,23 @@ P4_DATASET = os.path.join("data", "processed", "p4", "p4_infra_dataset.csv")
 DETECTIONS = os.path.join("data", "raw", "urlscan_brands", "detections.csv")
 TOKENS_JSON = os.path.join("data", "processed", "brand_tokens.json")
 OUT = os.path.join("data", "interim", "p4_label_audit.csv")
-# Every suffix the wildcard guard probed during a run, with what the resolver answered. Written
-# whenever audit() has probed anything, so the data article can publish the probe instead of
-# asking readers to trust the verdicts' `registry_wildcard` class.
+# Every suffix the wildcard guard probed during a run, with what the resolver answered, so the
+# data article can publish the probe instead of asking readers to trust the verdicts.
 WILDCARD_PROBE_OUT = os.path.join("data", "processed", "p4", "p4_wildcard_probe.csv")
 WATCHER_START = "2026-07-30"   # same boundary make_p4_assets.py uses for the live stratum
 
-# include_psl_private_domains=True — without it every site on a free subdomain host collapses to
+# include_psl_private_domains=True -- without it every site on a free subdomain host collapses to
 # the HOST's registration (`login-bidv.pages.dev` -> `pages.dev`): distinct phishing sites merge
 # into one unit carrying Cloudflare's DNS/TLS, which then ranks in Tranco and is excluded as
-# "legitimate" (how pages.dev, netlify.app, vercel.app, webflow.io, weebly.com, duckdns.org,
-# blogspot.com got into the excluded list). watch_host_infra.py used the default until 2026-08-03:
-# split host_infra.csv rows on `captured_at` before trusting `registered_domain`.
+# "legitimate". watch_host_infra.py used the default until 2026-08-03, so split host_infra.csv
+# rows on `captured_at` before trusting `registered_domain`.
 _EXTRACT = tldextract.TLDExtract(suffix_list_urls=(), include_psl_private_domains=True)
 
-# No registration of its own: NS/TTL/WHOIS belong to the host, so P4's registration-level
-# features are undefined — counted as their own stratum, not mixed into either arm.
-# `translate.goog` added 2026-08-24 (PREREG amendment of that date). It is a rewriting PROXY, not
-# a hosting provider: `vpcp-chinhphu-vn.translate.goog` is Google Translate's view of
-# `vpcp.chinhphu.vn` (encoding `-`->`.`, `--`->`-`), so the capture carries Google's address,
-# Google's `*.googleusercontent.com` certificate and ns_count 0 whatever the proxied site is —
-# and the language evidence the gate reads is the PROXIED page's, which may be an entirely
-# legitimate one. Both admitted rows were such false positives; see the amendment.
+# No registration of its own: NS/TTL/WHOIS belong to the host, so registration-level features are
+# undefined -- counted as their own stratum, not mixed into either arm. `translate.goog` added
+# 2026-08-24 (PREREG amendment): it is a rewriting PROXY, so the capture carries Google's
+# address, Google's certificate and ns_count 0 whatever the proxied site is, and the language
+# evidence is the PROXIED page's -- which may be a legitimate one. Both admitted rows were that.
 HOSTED_SUFFIXES = ("pages.dev", "netlify.app", "vercel.app", "web.app", "firebaseapp.com",
                    "webflow.io", "weebly.com", "wixsite.com", "blogspot.com", "github.io",
                    "duckdns.org", "ddns.net", "r2.dev", "workers.dev", "glitch.me", "repl.co",
@@ -85,11 +80,10 @@ HOSTED_SUFFIXES = ("pages.dev", "netlify.app", "vercel.app", "web.app", "firebas
 
 
 # LEXICAL subset of vn_filter.VN_TOKENS: Vietnamese common nouns/verbs only, every brand name
-# removed — brand tokens produced this audit's false positives (`bidv` sits innocently in Bidvest,
-# bidvine.de, bidvista.com). `dichvucong`, `baohiemxahoi`, `kekhai` are Vietnamese WORDS: a domain
-# spelling one out addresses Vietnamese speakers — a fact about LANGUAGE, independent of P4's
-# dependent variables. Not proof of malice (the real portal is dichvucong.gov.vn), so the
-# exclusion filters still run first.
+# removed -- brand tokens produced this audit's false positives (`bidv` sits innocently in
+# Bidvest, bidvine.de). `dichvucong`, `baohiemxahoi`, `kekhai` are Vietnamese WORDS: spelling
+# one out addresses Vietnamese speakers, a fact about LANGUAGE independent of P4's dependent
+# variables. Not proof of malice, so the exclusion filters still run first.
 VN_LEXICAL = re.compile(
     r"(nganhang|taikhoan|thanhtoan|chuyentien|nhantien|naptien|ruttien|vaytien|tietkiem|tindung|"
     r"chinhphu|congan|thuedientu|baohiem|bhxh|bhyt|dichvucong|kekhai|khaibao|vneid|cccd|canhcuoc|"
@@ -99,14 +93,12 @@ VN_LEXICAL = re.compile(
 
 
 def registrable(host: str) -> str:
-    return _EXTRACT(str(host)).registered_domain.lower()
+    return apex(_EXTRACT(str(host))).lower()
 
 
-# FIXED probe label, not random: a random one would make two audit runs disagree about which
-# suffixes wildcard whenever resolution is flaky; collision with a real registration is as good as
-# impossible either way. stdlib resolution on purpose — dnspython is not on the analysis Mac and
-# must not be quietly imported (b15ed86: an optional import turned every DNS failure into a fake
-# observation).
+# FIXED probe label, not random: a random one would make two runs disagree about which suffixes
+# wildcard whenever resolution is flaky. stdlib resolution on purpose -- dnspython is not on the
+# analysis Mac and must not be quietly imported (b15ed86 turned DNS failures into observations).
 _WILDCARD_PROBE_LABEL = "phishvn-wildcard-probe-x7q9z3"
 
 
@@ -136,13 +128,11 @@ def _today() -> str:
 def _load_caches() -> None:
     """Read the persisted probe answers so the funnel is a function of the data on disk.
 
-    DETERMINISM (2026-08-21). The registry probe and the no-address fallback both ask live DNS,
-    and two population builds minutes apart disagreed (wildcard 1,471 vs 1,472, admitted 181 vs
-    180) because one suffix answered differently. A pre-registered design cannot have a
-    population that depends on the minute it was built, and a data article cannot describe one.
-    So the answers are records: read from disk when present, probed only for suffixes (names)
-    the file has never seen, and refreshed as a whole only on an explicit --reprobe, which
-    stamps the new date into the file. The file IS the probe; the network is its source."""
+    DETERMINISM (2026-08-21). The registry probe and the no-address fallback both ask live DNS, and
+    two builds minutes apart disagreed (wildcard 1,471 vs 1,472) because one suffix answered
+    differently. A pre-registered design cannot have a population that depends on the minute it was
+    built. So the answers are records: read from disk, probed only for names the file has never
+    seen, refreshed as a whole only on --reprobe. The file IS the probe; the network is its source."""
     global _CACHES_LOADED
     if _CACHES_LOADED:
         return
@@ -186,12 +176,10 @@ def _resolve_cached(domain: str) -> frozenset[str]:
 def is_registry_wildcard(domain: str, recorded_ips: frozenset[str] | None = None) -> bool:
     """Does this name exist only as its registry's wildcard answer?
 
-    Prefers capture-time recorded addresses (same moment as the other audited fields); resolves
-    live only when no recording exists. A registered domain parked on the registry's IP is
-    excluded too — its infrastructure is still the registry's. Known miss: a parking address
-    rotated since capture no longer matches the probe and the row falls through to the lexical
-    verdicts — under-excludes, never over-excludes.
-    """
+    Prefers capture-time recorded addresses, resolving live only when no recording exists. A
+    registered domain parked on the registry's IP is excluded too -- its infrastructure is still the
+    registry's. Known miss: a parking address rotated since capture falls through to the lexical
+    verdicts, so this under-excludes, never over-excludes."""
     wc = wildcard_ips(_EXTRACT(str(domain)).suffix)
     if not wc:
         return False
@@ -228,7 +216,7 @@ def load_allowlists() -> set[str]:
     """The feed's own official-domain set, the brand-token registry's domains, and the
     trusted-org registry. Absence proves nothing (these are certification lists, not censuses),
     so this is used only to exclude, never to confirm."""
-    from watch_urlscan_brands import load_official  # noqa: E402  (reuses the live filter)
+    from watch_urlscan_brands import load_official
 
     out = {d.lower() for d in load_official()}
     try:
@@ -281,10 +269,9 @@ def load_blocklists() -> dict[str, set[str]]:
     return lists
 
 
-# A rendered password input — the strongest content evidence here: a page ASKING for a credential
-# is doing the thing the study is about, whatever its language (2026-08-16 spot-audit: only 18% of
-# Vietnamese-rendering confirmed pages carry one). Matched on the stored DOM snapshot, so a form
-# assembled by JavaScript after capture is missed: under-admits, never over-admits.
+# A rendered password input -- the strongest content evidence here: a page ASKING for a credential
+# is doing the thing the study is about, whatever its language. Matched on the stored DOM, so a
+# form assembled by JavaScript after capture is missed: under-admits, never over-admits.
 CRED_INPUT = re.compile(r"type\s*=\s*[\"']?password", re.I)
 
 
@@ -292,15 +279,13 @@ def content_evidence() -> dict[str, dict[str, bool]]:
     """registrable domain -> {renders_vietnamese, credential_form}, from the stored captures.
 
     Blocklist corroboration is structurally unavailable for the live stratum (all three lists
-    stopped publishing before the watcher started 2026-07-30); content is the only positive
-    evidence that keeps working. The language test is `vn_filter.is_vietnamese_text`, the same
-    gate as P1b's content manifest, so the two papers cannot disagree about what "Vietnamese"
-    means. A brand-token hit rendering no Vietnamese is substring collision (`bidvest-bank.tel`,
-    `bidvine.de` — Bidvest of South Africa) or an out-of-scope global site. NEITHER test separates
-    a brand's own portal from an impersonation (`vnpt-invoice.com.vn` renders exactly what a fake
-    would, password field included) — hence exclusions run first, and both are evidence, not proof.
-    """
-    from vn_filter import is_vietnamese_text, visible_text  # noqa: E402  (shared with P1b)
+    stopped publishing before the watcher started), so content is the only positive evidence that
+    keeps working. The language test is `vn_filter.is_vietnamese_text`, the same gate as P1b's
+    content manifest, so the two papers cannot disagree about what "Vietnamese" means. A brand-token
+    hit rendering no Vietnamese is substring collision or an out-of-scope global site. NEITHER test
+    separates a brand's own portal from an impersonation, so exclusions run first and both are
+    evidence, not proof."""
+    from vn_filter import is_vietnamese_text, visible_text
 
     try:
         det = pd.read_csv(DETECTIONS, low_memory=False)
@@ -317,9 +302,8 @@ def content_evidence() -> dict[str, dict[str, bool]]:
             continue
         with open(path, encoding="utf-8", errors="ignore") as f:
             html = f.read()
-        # visible text, not the raw file: the density threshold cannot survive markup dilution,
-        # and scoring html here is what made this gate disagree with P1b's on 73 domains while
-        # the docstring above promised they could not.
+        # visible text, not the raw file: the density threshold cannot survive markup dilution, and scoring
+        # html here is what made this gate disagree with P1b's on 73 domains.
         ev = {"renders_vietnamese": is_vietnamese_text(visible_text(html)),
               "credential_form": bool(CRED_INPUT.search(html))}
         # a domain may have several captures; any capture carrying the evidence carries it
@@ -329,11 +313,10 @@ def content_evidence() -> dict[str, dict[str, bool]]:
 
 def load_content_map(path: str) -> dict[str, dict[str, bool]]:
     """Content evidence computed elsewhere: captures live on the Jetson, exclusion lists (Tranco
-    especially) on the Mac — running the whole audit on the Jetson disables every exclusion and
-    promotes `sepay.vn`/`vnpt-invoice.com.vn`/`vnptpay.vn` to "content_confirmed", the exact error
-    this script exists to catch. Hence the explicit split: `--export-content` on the collector,
-    `--content-map` here. Maps exported before 2026-08-16 lack credential_form; that evidence
-    loads as absent (never guessed) until re-export."""
+    especially) on the Mac -- running the whole audit on the Jetson disables every exclusion and
+    promotes `sepay.vn`/`vnptpay.vn` to "content_confirmed", the exact error this script exists to
+    catch. Hence `--export-content` on the collector, `--content-map` here. Maps exported before
+    2026-08-16 lack credential_form; that evidence loads as absent, never guessed."""
     df = pd.read_csv(path)
     has_cred = "credential_form" in df.columns
     return {r["registered_domain"]: {"renders_vietnamese": bool(r["renders_vietnamese"]),
@@ -360,10 +343,9 @@ def audit(domains: list[str], use_content: bool = False,
         vi = None if ev is None else ev["renders_vietnamese"]
         pw = None if ev is None else ev["credential_form"]
         lex = is_vn_lexical(d)
-        # The wildcard guard outranks the positive-evidence verdicts: `vn_lexical` reads only the
-        # NAME (exactly what the mass-submitter chose), and a Vietnamese-rendering capture of a
-        # wildcard name predates what the row's infra fields describe. `renders_vietnamese` still
-        # lands in the CSV, so a wildcard row with past content evidence stays visible.
+        # The wildcard guard outranks the positive-evidence verdicts: `vn_lexical` reads only the NAME,
+        # and a Vietnamese-rendering capture of a wildcard name predates what the row's infra fields
+        # describe. `renders_vietnamese` still lands in the CSV, so past content evidence stays visible.
         if is_hosted_subdomain(d):
             verdict = "hosted_subdomain"
         elif in_tranco or in_allow:
@@ -477,10 +459,9 @@ def main() -> int:
         scope = "P4 conditioned phishing arm"
 
     cmap = load_content_map(args.content_map) if args.content_map else None
-    # BEFORE audit(), not after: write_wildcard_probe() runs inside audit() and writes its probe
-    # log into this same directory. On a host that carries only data/raw -- the collector, where
-    # `--all` is the natural place to run this -- the directory does not exist and the run dies
-    # after every DNS probe it just spent, with the mkdir three lines too late to help.
+    # BEFORE audit(), not after: write_wildcard_probe() runs inside audit() and writes into this same
+    # directory. On a host carrying only data/raw -- the collector, where `--all` is natural -- the
+    # directory does not exist and the run dies after every DNS probe it just spent.
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     res = audit([d for d in domains if d], use_content=args.content, content_map=cmap,
                 ipmap=ipmap)

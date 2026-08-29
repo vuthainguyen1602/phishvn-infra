@@ -24,6 +24,24 @@ the content map) ship with the data so that a consumer can see exactly what was 
 The corpus is described in a data article (in preparation). The pre-registration that fixes the
 population, the freeze rule and the analysis trigger is published with that article, not here.
 
+## Two things to read before using `label`
+
+`host_infra.csv` is the largest file here and carries a `label` column. It is the label the
+**source assigned on admission**, and it has two properties a reuser has to know.
+
+**It is perfectly confounded with `source`.** Every feed contributes to exactly one class, so a
+model trained on `label` in this file can score well by learning which feed a row came from. Use
+`p4_infra_dataset.csv`, which carries the gate `verdict` and the `arm` the study models, or join
+`label_audit.csv`. If you use the raw table anyway, hold out a whole source rather than a random
+split.
+
+**`phish` means "Vietnamese-targeting abuse the gate admitted", not "credential phishing".** The
+phishing feeds are anti-fraud lists — ChongLuaDao is a *chống lừa đảo* project — so gambling,
+betting-stream, investment and adult sites sit in the positive class beside credential phishing.
+Only the `credential_form` verdict is direct evidence that a page asks for a credential. **There
+is no `scam` label in this corpus and the gate cannot produce one**; separating the two needs
+page-level adjudication this collection does not perform.
+
 ## What is here
 
 ```

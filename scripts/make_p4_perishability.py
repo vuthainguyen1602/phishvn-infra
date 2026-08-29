@@ -2,59 +2,41 @@
 """
 make_p4_perishability.py — the capture audit of §3, drawn rather than recited.
 
-WHAT THIS IS, AND WHAT IT IS NOT. §3 makes two claims about the capture and states both as bare
-numbers in prose: the two strata must never be pooled, and the retry buys nothing. Both are
-shapes, and a shape argued in three numbers is one a reader has to take on trust. This script
-draws them from the same CSV `audit_infra_capture.py` reads, through the same stratification.
+DESCRIPTIVE ONLY, NOT THE CASCADE'S PERISHABILITY FACTOR. pi(tau) is the pre-registered estimand
+of §5.5 — Kaplan-Meier on the live stratum, computed at analysis time and not before. What is
+plotted here is observed resolvability at observed capture lag, one arm's marginal, revealing no
+outcome. Nothing is fitted; no arm is compared with another.
 
-It is a DESCRIPTIVE monitoring asset, not an estimate of the cascade's perishability factor.
-That distinction is not cosmetic: pi(tau) is the pre-registered estimand of the cascade test
-(§5.5), Kaplan-Meier on the live stratum, computed at analysis time and not before. What is
-plotted here is observed resolvability at observed capture lag, a marginal of a single arm --
-the same class of object as the certificate-age table the protocol already ships -- and it
-reveals no outcome. Nothing is fitted and no arm is compared with another.
+THE PHISHING ARM ONLY. §3's numbers (median 1.2 h, 94.8% resolving on the live stratum) were
+measured when the capture held phishing alone. `ct_benign` started the same day as the watcher,
+so it lands almost entirely in the live stratum and the pooled figures have since drifted
+(32.7 h, 87.6%) by ARM MIX, not by anything about phishing infrastructure.
 
-THE PHISHING ARM ONLY, AND WHY THAT MATTERS. §3's numbers (median 1.2 h and 94.8% resolving on
-the live stratum) were measured when the capture held phishing alone. `ct_benign` began on the
-same day the watcher did, so it lands almost entirely in the live stratum, and the audit's
-pooled strata figures have since drifted (32.7 h, 87.6%) by ARM MIX rather than by anything
-about phishing infrastructure. Everything below is the phishing arm, which is what §3 quotes
-and what the study models.
+WHAT THE SHAPE IS NOT. Resolvability holds near unity then collapses an order of magnitude one
+bin later (0.97 at 16-32 h vs 0.09 at 32-64 h). Both bins sit inside the backlog, so the stratum
+boundary is not doing that work — but a backlog worked in date order ties capture lag to
+detection date, so it is not a clean hazard either. The plot establishes only that a smooth
+hazard is not the sole candidate shape; the registered KM estimate settles it.
 
-WHAT THE SHAPE IS, AND WHAT IT IS NOT. Resolvability holds near unity while the lag is short
-and collapses by an order of magnitude one bin later -- 0.97 in the 16-32 h bin against 0.09 in
-32-64 h. Both bins sit inside the backlog, so the stratum boundary is not doing that work. It is
-still not a clean hazard: a backlog worked in date order ties capture lag to detection date, so
-those bins differ by a day in both at once. Only the live stratum, where enrichment follows
-detection within hours by construction, separates the two, which is exactly why the protocol
-models it alone. What the plot establishes is weaker and still useful: a smoothly decreasing
-hazard is not the only candidate shape, and a step near one to two days is a live possibility
-the registered Kaplan-Meier estimate will settle.
+THE RISING TAIL past 256 h is not infrastructure surviving: those answers concentrate on parking
+and aftermarket address space and sinkholes, so `has an A record` counts recycled and nulled
+names as alive. Drawn rather than screened away, because it bounds how far this indicator reads
+as survival at all — a caveat pi(tau) inherits.
 
-WHAT THE RISING TAIL IS. Backfill resolvability falls to ~0.10 and then climbs again past
-256 h. That is not infrastructure surviving. Inspection of those answers finds them concentrated
-on parking and aftermarket address space and on sinkholes -- the counts are generated into the
-caption rather than asserted here -- so `has an A record` counts recycled and nulled names as
-alive. The tail is drawn rather than screened away, because it bounds how far this indicator can
-be read as survival at all, which is a caveat pi(tau) inherits.
+THE RETRY, RE-MEASURED. §3 reports 0 revivals of 2,190 re-attempted domains. On the accumulated
+capture the pooled count is no longer zero, and the right panel says so; split by arm it is still
+~zero where the claim matters (revivals are benign-arm parking/aftermarket plus transient
+resolver failures on .gov.vn — the artefact class of §4, not evidence returning).
 
-THE RETRY, RE-MEASURED. §3 reports 0 revivals of 2,190 re-attempted domains from the watcher's
-first five days. On the accumulated capture the pooled count is no longer zero, and the right
-panel says so. Split by arm it is still ~zero where the claim matters: the revivals sit almost
-entirely on the benign arm and are parking and aftermarket infrastructure (Afternic, GoDaddy)
-plus transient resolver failures on .gov.vn -- the artefact class of §4, not evidence returning.
+REGISTRY WILDCARDS ARE LEFT OUT (2026-08-22), by the same predicate and probe file as P4b and
+audit_p4_labels.py (verdict `registry_wildcard`): a wildcard name resolves whether or not anyone
+registered it (98.6% of 2,147 live hosts before the screen, 95.4% of 668 after).
 
     python scripts/make_p4_perishability.py
 
 Writes data/processed/p4/p4_perishability.csv, data/processed/p4/p4_retry.csv,
 papers/P4_infra/figures/perishability.pdf, papers/P4_infra/sections/gen_perishability.tex and
 papers/P4_infra/sections/gen_perishability_macros.tex (the retry/strata counts as macros).
-
-REGISTRY WILDCARDS ARE LEFT OUT (2026-08-22). The same screen P4b's perishability paragraph
-and audit_p4_labels.py apply (verdict `registry_wildcard`), through the same predicate and the
-same persisted probe file: a wildcard name resolves whether or not anyone registered it, so
-counting it credited the registry's parking answer to the campaign (98.6% of 2,147 live hosts
-before the screen; 95.4% of 668 after). Descriptive only; no registered parameter moves.
 """
 from __future__ import annotations
 
@@ -71,21 +53,21 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 
-from genfile import write_generated  # noqa: E402
+from genfile import write_generated
 # The stratification rule, the timestamp parser and the per-domain reduction all come from the
 # audit script the paper cites, so this figure cannot drift from §3's numbers by having quietly
 # redefined "live" or "best record".
-from audit_infra_capture import (  # noqa: E402
+from audit_infra_capture import (
     INFRA, WATCHER_START, best_per_domain, ts,
 )
 # Same registry-wildcard predicate and persisted probe file as the label audit and P4b: a name
 # that resolves only to the registry's parking answer is not a registration.
-from audit_p4_labels import is_registry_wildcard, registrable, write_wildcard_probe  # noqa: E402
+from audit_p4_labels import is_registry_wildcard, registrable, write_wildcard_probe
 
 SEC = os.path.join(ROOT, "papers", "P4_infra", "sections")
 FIG = os.path.join(ROOT, "papers", "P4_infra", "figures")

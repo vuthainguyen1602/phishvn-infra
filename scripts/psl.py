@@ -38,10 +38,23 @@ _TWO_LEVEL = {"com.vn", "net.vn", "org.vn", "edu.vn", "gov.vn", "ac.vn", "info.v
               "blogspot.com", "github.io", "duckdns.org", "ddns.net", "glitch.me", "repl.co"}
 
 
+def apex(result) -> str:
+    """The registration under the public suffix, whichever tldextract is installed.
+
+    5.3 renamed `registered_domain` to `top_domain_under_public_suffix` and deprecated the old
+    name; both return the same string. Worth an accessor rather than a rename at each call site
+    because this library decides the UNIT OF OBSERVATION and its version is pinned in the
+    environment record for exactly that reason (the 3.2.0-vs-5.3.1 split that folded io.vn and
+    id.vn differently on two hosts, 2026-08-24). Every caller must fold identically on both.
+    """
+    new = getattr(result, "top_domain_under_public_suffix", None)
+    return result.registered_domain if new is None else new
+
+
 def registered_domain(host: str) -> str:
     if _EXTRACT is not None:
         try:
-            return _EXTRACT(host).registered_domain.lower() or host
+            return apex(_EXTRACT(host)).lower() or host
         except Exception:
             pass
     parts = host.split(".")

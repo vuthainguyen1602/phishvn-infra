@@ -118,6 +118,26 @@ for f in $files; do
     [ "$found" = 1 ] && continue
     echo "  MISSING: $m  (imported by $f)"; missing=1
   done
+  # The module resolving is not enough. A first-party module deployed WITHOUT the symbol its
+  # caller wants dies exactly like a missing file, and reads as a quiet day in the row counts --
+  # the failure of 21/8, one level down. `from psl import apex` against a psl.py that predates
+  # apex() is the live example: deploy the caller without the library and this loop is the only
+  # thing between that and another silent stop.
+  while read -r mod names; do
+    [ -n "$mod" ] && [ -n "$names" ] || continue
+    src=""
+    for c in "scripts/$mod.py" "scripts/$mod.py" "scripts/$mod.py" "scripts/$mod.py"; do
+      [ -f "$c" ] && src="$c" && break
+    done
+    [ -n "$src" ] || continue          # third-party: pip owns its contents, not this check
+    for n in $names; do
+      grep -qE "^(def|class) $n([ (:]|\$)|^$n *=" "$src" && continue
+      echo "  MISSING SYMBOL: $mod.$n  (imported by $f; $src is stale)"; missing=1
+    done
+  done <<EOSYM
+$(grep -hoE '^from [A-Za-z_][A-Za-z0-9_]* import [A-Za-z_][A-Za-z0-9_, ]*' "$f" \
+  | tr ',' ' ' | awk '{ printf "%s", $2; for (i = 4; i <= NF; i++) printf " %s", $i; print "" }')
+EOSYM
 done
 [ "$missing" = 0 ] && echo "  all present"
 REMOTE

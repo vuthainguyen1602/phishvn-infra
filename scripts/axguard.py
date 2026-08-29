@@ -2,37 +2,30 @@
 """
 axguard.py — refuse to write a figure that cuts off its own data.
 
-WHY. A sweep of every generated figure in this repository found five that plotted data outside
-their own axis limits, and not one was visible to a careful reader. Three shapes recurred:
-
-  * a floor pinned at a round number just above a series' true minimum, so the deepest part of a
-    decline left the plot and came back, reading as a gap rather than as a collapse;
-  * an error bar whose lower cap fell under the axis, understating exactly the uncertainty the
-    figure was drawn to show;
-  * a curve cut at its terminal point -- the extreme operating point a reader reasons about
-    first -- so several series ran off the bottom edge together.
-
-A clipped series does not look wrong. It looks like a line that ends, and the reader has no way
-to tell a real endpoint from a frame that stops early. That is why this is a build-time gate and
-not a review checklist: figstyle.apply() installs it, and every generator in this repository goes
-through figstyle.
+WHY. A sweep of every generated figure here found five that plotted data outside their own axis
+limits, none visible to a careful reader: a floor pinned just above a series' true minimum, so a
+collapse read as a gap; an error bar whose lower cap fell under the axis, understating exactly the
+uncertainty the figure was drawn to show; a curve cut at its terminal point, the extreme operating
+point a reader reasons about first. A clipped series does not look wrong — it looks like a line
+that ends, and the reader cannot tell a real endpoint from a frame that stops early. Hence a
+build-time gate rather than a review checklist: figstyle.apply() installs it, and every generator
+here goes through figstyle.
 
 WHAT IT DOES. Before a figure is written, every artist drawn in data coordinates is compared
-against the view limits. Data outside them raises; a legend sitting on top of data prints a
-warning (the data is still in frame, so it is a legibility problem, not a truth problem).
+against the view limits. Data outside them raises; a legend sitting on data only warns (a
+legibility problem, not a truth problem).
 
-DELIBERATE ZOOMS. A figure may legitimately frame a sub-range -- but it should then not draw what
-it excludes. Where that is impractical, say so at the call site and give the reason:
+DELIBERATE ZOOMS. A figure may frame a sub-range, but should then not draw what it excludes. Where
+that is impractical, say so at the call site with a reason:
 
     from axguard import allow_clipping
     allow_clipping(ax, "boosting iterations 0-1 dwarf the converged region under study")
 
-TWO TRAPS, both of which produced false alarms before this was trusted:
-  * axhline/axvline/axhspan use a BLENDED transform -- one axis carries axes-fraction coords, so
-    their (0, 1) endpoints look like data far outside any view;
-  * a LineCollection (what errorbar draws its bars with) keeps its geometry in segments, and
-    get_offsets() returns an unset [[0, 0]] placeholder that reads as a point at the origin.
-Both are why artists are filtered on transform, and why collections are read via get_segments().
+TWO TRAPS, both of which produced false alarms before this was trusted: axhline/axvline/axhspan
+use a BLENDED transform, so their (0, 1) endpoints look like data far outside any view; and a
+LineCollection (what errorbar draws bars with) keeps geometry in segments, with get_offsets()
+returning an unset [[0, 0]] placeholder that reads as a point at the origin. Hence artists are
+filtered on transform and collections read via get_segments().
 """
 from __future__ import annotations
 

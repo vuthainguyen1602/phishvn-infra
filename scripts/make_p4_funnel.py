@@ -3,27 +3,25 @@
 make_p4_funnel.py — the population funnel and the accrual toward the trigger, drawn.
 
 WHY THESE TWO TOGETHER. Both answer the question a pre-registered design invites and a table
-answers badly: is this study going to have a population, and where did the candidates go? The
-funnel table (`tab_audit`) already prints the counts; what it cannot show is that the cuts are
-wildly unequal in size, and that the biggest one by far is not a design choice at all but the
-registry-wildcard artefact of Section~\\ref{ssec:wildcard} -- names nobody ever registered,
-answered for by the registry. Reading that from five rows of numbers takes effort a bar does not.
+answers badly: is this study going to have a population, and where did the candidates go?
+`tab_audit` prints the counts but cannot show that the cuts are wildly unequal, and that the
+biggest by far is not a design choice but the registry-wildcard artefact of
+Section~\\ref{ssec:wildcard} — names nobody ever registered, answered for by the registry.
 
-The accrual panel is the honest version of the progress sentence. `gen_progress` states the count
-and the fraction of the trigger; a reader's next question is when the trigger fires, and the
-answer has a registered deadline attached (the 2027-01-31 calendar bound), so the projection and
-the bound belong on the same axis.
+The accrual panel is the honest version of the progress sentence: `gen_progress` states the count
+and the fraction of the trigger, and a reader's next question is when the trigger fires — an
+answer with a registered deadline attached (the 2027-01-31 calendar bound), so projection and
+bound belong on the same axis.
 
 PRE-REGISTRATION SAFETY. Both panels are single-arm marginals of the phishing candidate pool at
-capture time. No outcome is read, no model is fitted, no arm is compared with another, and the
-projection extrapolates admission counts -- how fast the population grows -- not anything the
-population will later be used to measure. This is the same class of object as the funnel table
-and the progress sentence the protocol already ships, and it is regenerated with them.
+capture time: no outcome read, no model fitted, no arm compared, and the projection extrapolates
+admission counts — how fast the population grows — not anything it will later measure. Same class
+of object as the funnel table and progress sentence the protocol already ships.
 
-THE PROJECTION IS DELIBERATELY DUMB. A constant-rate line from the observed accrual, not a fit
-with a trend: the feed's rate is visibly not constant, and a cleverer extrapolation would invite
-the reader to believe a date the data cannot support. Two rates are drawn -- the whole-window
-average and the trailing fortnight -- and where they disagree is the honest uncertainty.
+THE PROJECTION IS DELIBERATELY DUMB: a constant-rate line, not a fit with a trend. The feed's rate
+is visibly not constant, and a cleverer extrapolation would invite belief in a date the data
+cannot support. Two rates are drawn — whole-window average and trailing fortnight — and where they
+disagree is the honest uncertainty.
 
     python scripts/make_p4_funnel.py
 
@@ -42,16 +40,16 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 
-from genfile import write_generated  # noqa: E402
+from genfile import write_generated
 # The funnel, the trigger and the population rule are imported rather than restated: this figure
 # must be the same object the table is, or it becomes a second source of truth for a number the
 # pre-registration turns on.
-from make_p4_assets import TRIGGER, build_population  # noqa: E402
+from make_p4_assets import TRIGGER, build_population
 
 SEC = os.path.join(ROOT, "papers", "P4_infra", "sections")
 FIG = os.path.join(ROOT, "papers", "P4_infra", "figures")

@@ -2,39 +2,32 @@
 """
 audit_infra_capture.py — what the infrastructure capture can and cannot support (P4).
 
-P4 intends to ask whether WHOIS/DNS/TLS infrastructure adds detection signal that URL and content
-channels do not carry. Before any model is fitted, three properties of the capture decide whether
-such a study is measurable at all, and all three are measurable NOW. This script measures them.
+P4 asks whether WHOIS/DNS/TLS infrastructure adds signal the URL and content channels do not carry.
+Three properties of the capture decide whether such a study is measurable at all, and all three are
+measurable before any model is fitted.
 
-1. STRATA. The capture has two populations that must never be pooled. Domains detected before the
-   watcher started were enriched from a backlog, days after detection, and are mostly dead by then
-   (~11% retain an A record). Domains detected while the watcher was running are enriched within
-   hours and are essentially complete. Pooling them would let "was this domain captured late"
-   masquerade as an infrastructure feature, and late capture is not a property of the phishing --
-   it is a property of when we happened to start collecting.
+1. STRATA. Two populations that must never be pooled: domains detected before the watcher started
+   were enriched from a backlog days later and are mostly dead by then (~11% retain an A record);
+   domains detected while it ran are enriched within hours. Pooling lets "was this captured late"
+   masquerade as an infrastructure feature — and late capture is a property of when we started
+   collecting, not of the phishing.
 
-2. THE RETRY IS INERT. The watcher re-attempts domains whose first observation showed no A record,
-   on the theory (from the CT feed) that a certificate can precede DNS. Measured over every
-   re-attempted domain, the number that ever gained an A record is reported here. If it is zero,
-   the retry buys nothing and the design should say so rather than imply a rescue that is not
-   happening.
+2. THE RETRY IS INERT. The watcher re-attempts domains whose first observation showed no A record
+   (a certificate can precede DNS). The number that ever gained one is reported here; if it is
+   zero, the design should say so rather than imply a rescue that is not happening.
 
-3. THE BENIGN ARM IS A TRAP, AND IT HAS NOT BEEN COLLECTED YET. This is the finding that decides
-   P4. VNNIC publishes neither WHOIS nor RDAP for .vn, so whois_* is structurally absent for every
-   .vn domain -- missing by registry policy, not by domain death. The available benign feed
-   (trusted-org certifications) is 100% .vn. The live phishing stratum is mostly non-.vn, where
-   WHOIS is available. So a benign arm drawn from that feed would make "has a WHOIS record" a
-   near-perfect phishing indicator that encodes nothing but which registry the domain sits in.
-   A model would seize on it, report an excellent AUC, and have learned to detect .vn: the same
-   corpus-composition artefact the thesis's other studies trace through TLD length, on the very
-   population where the lexical detector already fails. This script quantifies that artefact
-   BEFORE the benign arm is built,
-   because after it is built the number is no longer a warning, it is a result.
+3. THE BENIGN ARM IS A TRAP, AND IT HAS NOT BEEN COLLECTED YET — the finding that decides P4. VNNIC
+   publishes neither WHOIS nor RDAP for .vn, so whois_* is structurally absent for every .vn domain
+   (registry policy, not domain death). The available benign feed is 100% .vn; the live phishing
+   stratum is mostly non-.vn, where WHOIS is available. A benign arm drawn from that feed would
+   make "has a WHOIS record" a near-perfect phishing indicator encoding nothing but the registry —
+   an excellent AUC for a model that has learned to detect .vn, on the very population where the
+   lexical detector already fails. Quantified BEFORE the benign arm is built, because afterwards
+   the number is no longer a warning but a result.
 
-The output is a set of design constraints, not a table for a paper: P4 must model the live stratum
-only, must treat .vn WHOIS absence as structural (never imputed, never given a missingness
-indicator that is collinear with the TLD), and must draw its benign arm TLD-matched and
-time-matched against the phishing arm.
+The output is a set of design constraints, not a table: P4 must model the live stratum only, treat
+.vn WHOIS absence as structural (never imputed, never given a missingness indicator collinear with
+the TLD), and draw its benign arm TLD- and time-matched against the phishing arm.
 
 RUN:  python scripts/audit_infra_capture.py
 """
@@ -51,7 +44,7 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)

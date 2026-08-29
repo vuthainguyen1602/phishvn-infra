@@ -15,14 +15,12 @@ hit is a candidate — the official-domain filter plus downstream labelling do t
 1,000/day (~one search per token per run).
 
 THE CAPTURE BUDGET IS A QUEUE, NOT A CLIFF (2026-08-25). --max-captures bounds wall-clock, not
-quota — captures cost `retrieve` (10,000/day) and a 6-hourly cron spends at most 240 of it. But a
-run that found more than the cap used to write the surplus straight into seen_domains.txt with
-found=0, and seen_domains is what the next run filters on, so those domains could never be
-captured again: 13 of 121 runs ended "N new, 60 captured" and 458 of 2,886 rows carry an identity
-with no page behind it. urlscan keeps the scan permanently, so nothing about that loss was
-necessary. Every attempt is now logged to captures.csv (append-only, one row per try, the same
-ledger shape the CT feed's capture bridge keeps), and each run spends whatever budget the new
-candidates leave on the identities an earlier run could not reach, oldest first.
+quota. But a run that found more than the cap used to write the surplus straight into
+seen_domains.txt with found=0, and seen_domains is what the next run filters on, so those domains
+could never be captured again: 458 of 2,886 rows carry an identity with no page behind it. urlscan
+keeps the scan permanently, so none of that loss was necessary. Every attempt is now logged to
+captures.csv (append-only, one row per try, the ledger shape the CT capture bridge keeps), and each
+run spends whatever budget the new candidates leave on identities an earlier run missed, oldest first.
 
 detections.csv is therefore the identity record — one row per domain, at first detection, never
 rewritten — and captures.csv is where a later capture of that domain lands. Anything that wants
@@ -47,11 +45,11 @@ import requests
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
-from watch_chongluadao import clean_title, fetch_external_js  # noqa: E402  (shared capture helpers)
+from watch_chongluadao import clean_title, fetch_external_js
 
 H = {"User-Agent": "Mozilla/5.0 (research; contact thaivn_ph@utc.edu.vn)"}
 SEARCH = "https://urlscan.io/api/v1/search/"
@@ -68,9 +66,9 @@ SHOT_DIR = os.path.join("data", "raw", "landing_live_shots")
 JS_DIR = os.path.join("data", "raw", "landing_live_js")
 TOKENS_JSON = os.path.join("data", "processed", "brand_tokens.json")
 
-# Curated, not brand_tokens.json wholesale (1,798 tokens incl. generic place names — noise, not
+# Curated, not brand_tokens.json wholesale (1,798 tokens incl. generic place names -- noise, not
 # coverage): only Vietnamese-specific strings a foreign hostname has no innocent reason to carry.
-# `shopee`/`momo` excluded: 4,679 and 1,305 scans in 30 days, nearly all legitimate/non-Vietnamese.
+# `shopee`/`momo` excluded: 4,679 and 1,305 scans in 30 days, nearly all legitimate.
 DEFAULT_TOKENS = [
     # banks — dropped after a 7-day trial: `tpbank` = OTP Bank (HU), `abbank` = Charles Schwab,
     # `eximbank`/`seabank` = PH/ID banks, `ghtk` (4 chars) = "shinebri-ghtk-its" etc.
@@ -82,22 +80,19 @@ DEFAULT_TOKENS = [
     "vneid", "dichvucong", "baohiemxahoi", "thuedientu", "tongcucthue",
     # logistics
     "viettelpost", "vnpost", "giaohangtietkiem",
-    # Added 2026-07-26 after corpus scoring + a live 7-day urlscan trial (only the trial sees
-    # global noise): mbbank (mbbank-vn.com), vssid (vssidgovn.com), vietlott (vietlott4d.com),
-    # pharmacity, vnpay, chinhphu; gplx returned 0 hits in 7d but no noise — kept as a cheap
-    # probe for driving-licence scams (10 in the corpus).
+    # Added 2026-07-26 after corpus scoring + a live 7-day trial (only the trial sees global noise):
+    # mbbank, vssid, vietlott, pharmacity, vnpay, chinhphu; gplx returned 0 hits but no noise, kept
+    # as a cheap probe for driving-licence scams.
     "mbbank", "vietlott", "pharmacity", "vnpay", "vssid", "gplx", "chinhphu",
-    # REJECTED by the same trial — corpus prevalence does not mean the string is safe to search:
-    #   lazada (54 hits: real regional Lazada), tiki (41: tikitaka1.de etc.), lotte (31: prefix
-    #   of "lottery"), sendo (30: sendoui.com etc.), ocb (22) / msb (18): 3-char tokens unusable
-    #   for substring search (ocbcsekuritas.org.ph, msbureau.com).
+    # REJECTED by the same trial -- corpus prevalence does not mean the string is safe to search:
+    # lazada (54 hits: real regional Lazada), tiki (41), lotte (31: prefix of "lottery"), sendo (30),
+    # and ocb/msb, 3-char tokens unusable for substring search (ocbcsekuritas.org.ph, msbureau.com).
 ]
 
 # A SECOND LENS, on page content: the token list is blind to e.g. `56bfrd3jrn.pages.dev` rendering
 # a bank login under a random name. Measured 7-day window 2026-07-26 (found -> surviving the
-# official-domain filter): "Ngân hàng" 44->28, "Dịch vụ công" 33->10, *nhanqua* 6->6,
-# *dangnhap* 6->6, *xacminh* 1->1. `page.title:"Đăng nhập"` deliberately absent despite the
-# highest volume (95->95): it matches every Vietnamese login page there is.
+# official-domain filter): "Ngan hang" 44->28, "Dich vu cong" 33->10, *nhanqua* 6->6.
+# `page.title:"Dang nhap"` is absent despite the highest volume: it matches every VN login page.
 CONTENT_QUERIES = [
     ('page.title:"Ngân hàng"', "title:bank"),
     ('page.title:"Dịch vụ công"', "title:public-service"),
@@ -115,9 +110,9 @@ def load_official() -> set[str]:
     """Registered domains of the real organisations, so `*vietcombank*` does not report
     vietcombank.com.vn as an impersonation. Sourced from the trusted-org registry the project
     already builds; falls back to a minimal set if the file is absent."""
-    # Real domains the filter kept reporting: techcombank.com / viettel.com.vn (first run);
-    # vnpay.vn / chinhphu.vn (2026-07-26 trial — `chinhphu` alone returned 40 legitimate
-    # government subdomains, since chinhphu.vn escapes the .gov.vn suffix rule)
+    # Real domains the filter kept reporting: techcombank.com / viettel.com.vn (first run); vnpay.vn /
+    # chinhphu.vn (`chinhphu` alone returned 40 legitimate government subdomains, since chinhphu.vn
+    # escapes the .gov.vn suffix rule).
     official = {"techcombank.com", "viettel.com.vn", "vnpay.vn", "chinhphu.vn",
                 # from the content lens: the Government newspaper and a real digital bank
                 "baochinhphu.vn", "vikkibank.vn",
@@ -152,8 +147,7 @@ def token_at_boundary(domain: str, tok: str) -> bool:
 
 
 # Registration under these is restricted to verified government bodies / accredited schools, so a
-# hostname there is the real organisation — without this every provincial social-insurance and tax
-# subdomain becomes a candidate.
+# hostname there is the real organisation -- without it every provincial subdomain is a candidate.
 RESTRICTED_SUFFIXES = (".gov.vn", ".edu.vn", ".mil.vn")
 
 
@@ -253,22 +247,16 @@ def pending_captures(det_path: str, tries: dict[str, int], done: set[str],
                      max_attempts: int, skip: set[str],
                      since: str = "") -> list[tuple[str, str, str, str]]:
     """Identities with no page behind them yet: the run that found them ran out of budget, or the
-    retrieve failed. Oldest first — the lure that has been up longest is the one closest to going
-    dark, and ordering is the only real choice here: the budget decides how many, not which.
+    retrieve failed. Oldest first -- the lure up longest is closest to going dark, and ordering is
+    the only real choice here, since the budget decides how many rather than which.
 
-    A row with no scan_uuid is skipped rather than retried forever; there is nothing to fetch.
-    max_attempts bounds the other dead end, a scan urlscan has since deleted or made private.
-    `skip` holds the domains this run has already tried: without it the drain immediately
-    re-fetches the candidate that just failed a few lines above, burning two of its attempts and
-    a slot of budget on the same scan in the same minute.
+    A row with no scan_uuid is skipped rather than retried forever. `skip` holds what this run has
+    already tried, without which the drain immediately re-fetches the candidate that just failed.
 
-    `since` (YYYY-MM-DD, empty = no limit) holds the queue to identities first detected on or
-    after that date. The queue opened with a backlog reaching back to the day the feed started,
-    and draining all of it puts several hundred captures into the corpus at once -- which is a
-    decision about the corpus, not about the collector, and belongs to whoever rebuilds the
-    content manifest rather than to a cron tick. With a date set, the deferred rows stay in
-    detections.csv and stay queueable: nothing is dropped, and lifting the date later drains
-    them."""
+    `since` holds the queue to identities first detected on or after that date. The backlog reaches
+    back to the day the feed started, and draining all of it puts several hundred captures into the
+    corpus at once -- a decision about the corpus, not the collector, belonging to whoever rebuilds
+    the manifest. Deferred rows stay queueable: nothing is dropped, and lifting the date drains them."""
     out: list[tuple[str, str, str, str]] = []
     if not os.path.exists(det_path):
         return out
@@ -375,9 +363,8 @@ def main() -> int:
         with open(cap_path, "w", newline="", encoding="utf-8") as cf:
             csv.DictWriter(cf, fieldnames=CAP_FIELDS).writeheader()
 
-    # New candidates go first. They are the freshest lures on the list, so a capture spent on one
-    # is the likeliest to find a page still standing; the queue below is where the rest go, and it
-    # keeps them rather than losing them, which is the whole change.
+    # New candidates go first: they are the freshest lures, so a capture spent on one is likeliest to
+    # find a page still standing. The queue below keeps the rest rather than losing them.
     if cand:
         with open(det_path, "a", newline="", encoding="utf-8") as f, \
                 open(seen_path, "a", encoding="utf-8") as sf, \
@@ -408,16 +395,15 @@ def main() -> int:
                 f.flush()
                 sf.flush()
 
-    # Whatever budget the new candidates left is spent on identities an earlier run could not
-    # reach. detections.csv is NOT rewritten when one of these lands: it is the identity record,
-    # and a paper built on it must not shift under a later capture. captures.csv carries the page.
+    # Whatever budget the new candidates left is spent on identities an earlier run could not reach.
+    # detections.csv is NOT rewritten when one lands -- it is the identity record, and a paper built
+    # on it must not shift under a later capture. captures.csv carries the page.
     n_retry = n_ok = 0
     queue = ([] if args.no_capture
              else pending_captures(det_path, tries, done, args.max_attempts, attempted,
                                    args.queue_since))
-    # counted HERE, before the drain: the loop below adds every domain it touches to `done` and
-    # `attempted`, so asking the same question afterwards returns the deferred rows only and the
-    # difference collapses to zero
+    # counted HERE, before the drain: the loop below adds every domain it touches to `done`, so asking
+    # afterwards returns the deferred rows only and the difference collapses to zero.
     n_held = 0
     if args.queue_since and not args.no_capture:
         n_held = max(0, len(pending_captures(det_path, tries, done, args.max_attempts,

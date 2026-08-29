@@ -2,28 +2,27 @@
 """
 watch_host_infra.py — Capture WHOIS/DNS/TLS infrastructure of detected domains AT DETECTION TIME.
 
-WHY: phishing infrastructure (registrar, NS, hosting IP, cert issuer, domain age) dies within
-days and cannot be reconstructed later, unlike URL/HTML features. Tails every detections.csv,
-enriches unseen domains, appends one row per observation to data/raw/host_infra/host_infra.csv.
-Raw values stored (IPs, NS hosts, dates, issuer DN), never derived booleans — raw can be
-recomputed forever.
+WHY: phishing infrastructure (registrar, NS, hosting IP, cert issuer, domain age) dies within days
+and cannot be reconstructed later, unlike URL/HTML features. Tails every detections.csv, enriches
+unseen domains, appends one row per observation to data/raw/host_infra/host_infra.csv. Raw values
+stored (IPs, NS hosts, dates, issuer DN), never derived booleans — raw can be recomputed forever.
 
-RETRIES: CT sees a lookalike at cert issuance, often before its DNS exists, so a no-A-record
-domain is re-attempted (up to --max-attempts, while younger than --max-age-days). A domain with
-an A record is done; the append-only log is the retry state. MEASURED 2026-08-03
-(scripts/audit_infra_capture.py): of 1,950 re-attempted domains ZERO gained an A record — the
-backlog was enriched days late, already dead. Kept (cost negligible, CT-before-DNS real for live
-detections), but do NOT claim the retry recovers captures until that number is non-zero.
+RETRIES: CT sees a lookalike at cert issuance, often before its DNS exists, so a no-A-record domain
+is re-attempted (up to --max-attempts, while younger than --max-age-days); the append-only log is
+the retry state. MEASURED 2026-08-03 (scripts/audit_infra_capture.py): of 1,950 re-attempted
+domains ZERO gained an A record — the backlog was enriched days late, already dead. Kept (cost
+negligible, CT-before-DNS real for live detections), but do NOT claim the retry recovers captures
+until that number is non-zero.
 
 WHOIS SCOPE: WHOIS and NS/MX on the REGISTERED domain, which since 2026-08-03 means the tenant's
-own name on a free-subdomain host (foo.weebly.com, not weebly.com — see registered_domain below).
-Such names have no registration, so blank whois_*/ns_count 0 is the honest observation — the
-alternative files Weebly's WHOIS under the attacker. Both full host and registered domain are
-recorded. DNS A/CNAME and TLS are on the full host — the machine serving the lure.
+own name on a free-subdomain host (foo.weebly.com, not weebly.com). Such names have no
+registration, so blank whois_*/ns_count 0 is the honest observation — the alternative files
+Weebly's WHOIS under the attacker. Both full host and registered domain are recorded; DNS A/CNAME
+and TLS are on the full host, the machine serving the lure.
 
-KNOWN LIMIT: .vn has no public WHOIS (verified 2026-07-30: whois.net.vn refuses :43,
-rdap.vnnic.vn does not resolve, .vn absent from IANA RDAP bootstrap) — whois_* stays blank there;
-use tls_not_before as the age proxy (fresh phishing certs postdate registration by hours).
+KNOWN LIMIT: .vn has no public WHOIS (verified 2026-07-30: whois.net.vn refuses :43, rdap.vnnic.vn
+does not resolve, .vn absent from IANA RDAP bootstrap) — whois_* stays blank there; use
+tls_not_before as the age proxy (fresh phishing certs postdate registration by hours).
 
 RUN (cron tick on the Jetson, via host_infra_run.sh):
   python3 scripts/watch_host_infra.py
@@ -43,11 +42,11 @@ from datetime import datetime, timezone
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:          # flat layout (public mirror): scripts/ sits under ROOT
     ROOT = os.path.dirname(_HERE)
-from psl import registered_domain  # noqa: E402  (shared with the evaluation code)
+from psl import registered_domain
 
 OUTDIR = os.path.join("data", "raw", "host_infra")
 OUT = os.path.join(OUTDIR, "host_infra.csv")

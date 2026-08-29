@@ -25,7 +25,7 @@ from pathlib import Path
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
@@ -49,39 +49,31 @@ VN_TOKENS = re.compile(
 VN_CHARS = set("ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ")
 
 # The single-tone vowels above are shared with French, Portuguese, Spanish and Italian, so density
-# over VN_CHARS alone does not identify Vietnamese. It fired on the dotPH registry parking page
-# whenever that page rendered its category list in a Romance language ("Éducation", "Notícias e
-# Política"), and on Chrome's own error pages in those locales. Vietnamese text of any length also
-# carries the letters below, which none of those languages use.
+# over VN_CHARS alone does not identify Vietnamese: it fired on the dotPH parking page whenever
+# it rendered its categories in a Romance language, and on Chrome's error pages in those locales.
 SHARED_LATIN_DIACRITICS = set("àáâèéêìíòóôùúýãõ")
 VN_ONLY_CHARS = VN_CHARS - SHARED_LATIN_DIACRITICS
 
-# Even VN_ONLY_CHARS is not Vietnamese-only: `ă` is Romanian, `đ` Croatian and Serbian, and the
-# dot-below vowels `ẹ ọ ị ụ` are Yoruba and Igbo. A localised Chrome error screen in any of those
-# would pass exactly as the French one did. What no other language does is STACK a base modifier
+# Even VN_ONLY_CHARS is not Vietnamese-only: `a-breve` is Romanian, `d-bar` Croatian and Serbian,
+# the dot-below vowels Yoruba and Igbo. What no other language does is STACK a base modifier
 # (breve, circumflex, horn) under a tone mark, so these letters carry the language on their own.
-# Cost on the 2026-08-18 captures: 5 of 2,631 accepted pages lack one, and all five are the same
-# "Website này đã đóng" closure notice -- a non-page the quality gate wants gone anyway.
+# Cost on the 2026-08-18 captures: 5 of 2,631 accepted pages lack one, all the same closure notice.
 VN_STACKED_CHARS = set("ằẳẵắặầẩẫấậềểễếệồổỗốộờởỡớợừửữứự")
 
-# The second route, for Vietnamese that happens to use none of the stacked letters -- short lures
-# especially: "Cảnh báo: tài khoản của bạn sẽ bị khóa" carries five VN-exclusive letters and not
-# one stacked. The threshold comes from the confusable languages' own inventories, not from taste:
-# Romanian reaches 1 of these letters, Croatian 1, Yoruba 2, Igbo 3, because none of them has
-# `ă đ ơ ư` together with the hook and dot-below vowels. Four is the first count they cannot reach.
+# The second route, for Vietnamese using none of the stacked letters -- short lures especially.
+# The threshold comes from the confusable languages' own inventories, not taste: Romanian reaches
+# 1 of these letters, Croatian 1, Yoruba 2, Igbo 3. Four is the first count they cannot reach.
 VN_ONLY_DISTINCT_MIN = 4
 
 
 def load_brand_regex(path: Path = BRAND_TOKENS_PATH) -> re.Pattern | None:
     """Compile the registry-generated brand tokens; None if the file is absent/invalid.
 
-    Losing this file is not small: it carries 1,798 tokens and its absence removes ~6% of the
-    admissions on a Vietnamese-targeting feed. The public mirror ships this module but excludes
-    data/processed/, so it runs at None and reproduces a different filter than the paper
-    describes -- which is why the fallback now says so on stderr instead of being silent. The
-    comprehension moved inside the guard as well: an entry missing "mode" used to raise at import
-    time and take every collector down with it.
-    """
+    Losing this file removes ~6% of the admissions on a Vietnamese-targeting feed. The public mirror
+    ships this module but excludes data/processed/, so it runs at None and reproduces a different
+    filter than the paper describes -- hence the fallback says so on stderr instead of staying
+    silent. The comprehension sits inside the guard too: an entry missing "mode" used to raise at
+    import time and take every collector down with it."""
     try:
         entries = json.loads(Path(path).read_text(encoding="utf-8"))["tokens"]
         parts = [re.escape(e["token"]) if e["mode"] == "substring"
@@ -118,23 +110,19 @@ def _match_tokens(d: str) -> bool:
     return bool(VN_TOKENS.search(d)) or bool(BRAND_TOKENS and BRAND_TOKENS.search(d))
 
 
-# A match on the separator-stripped spelling counts only when it is whole segments glued
-# together: it must START where a segment starts, END where one ends, and be at least this long.
-# Restricted to the hand-curated core -- the registry tier's audited precision is 0.10 on the raw
-# name already, and a fused spelling multiplies its surface (app-net -> appnet).
-# The 9-real/0-junk measurement behind the floor of 6, and the correction to an earlier and wrong
-# justification for it: docs/decisions/vn-filter-aligned-min-token.md
+# A match on the separator-stripped spelling counts only when it is whole segments glued together:
+# it must START where a segment starts, END where one ends, and be at least this long. Restricted
+# to the hand-curated core -- the registry tier's audited precision is 0.10 on the raw name.
+# The measurement behind the floor of 6: docs/decisions/vn-filter-aligned-min-token.md
 ALIGNED_MIN_TOKEN = 6
 
 
 def name_segments(domain: str) -> list[list[str]]:
-    """The domain's own word split, kept per label: each label is punycode-decoded and stripped of
+    """The domain's own word split, kept per label: each label is punycode-decoded, stripped of
     diacritics, then cut on hyphens and underscores.
 
     The nesting matters. Flattening the labels into one list lets a label's tail fuse with the TLD,
-    which is how `dmg-tech.com` came to match `techcom` -- `tech` and `com` are adjacent segments
-    and the join between them is a dot, not a hyphen. A dot is never crossed.
-    """
+    which is how `dmg-tech.com` came to match `techcom`. A dot is never crossed."""
     out = []
     for label in (domain or "").lower().split("."):
         if label.startswith("xn--"):
@@ -179,11 +167,9 @@ def visible_text(html: str) -> str:
     """Rendered text of a captured page: script/style/noscript dropped, tags stripped.
 
     is_vietnamese_text must be given THIS, not the raw file. Markup dilutes diacritic density by
-    roughly 30x -- a real Vietnamese page scores ~0.14 on its visible text and ~0.004 on its HTML,
-    and the 0.008 threshold sits inside the diluted range, so scoring the raw file measures how
-    much markup surrounds the text rather than what language it is in. A label audit did that
-    while documenting the gate as shared with the capture manifest; the two disagreed on 73 domains.
-    """
+    roughly 30x -- a real Vietnamese page scores ~0.14 on visible text and ~0.004 on its HTML, and
+    the 0.008 threshold sits inside the diluted range -- so scoring the raw file measures how much
+    markup surrounds the text. A label audit did that and disagreed with the manifest on 73 domains."""
     t = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\1>", " ", html or "")
     return re.sub(r"\s+", " ", re.sub(r"(?s)<[^>]+>", " ", t)).strip()
 
@@ -191,12 +177,10 @@ def visible_text(html: str) -> str:
 def is_vietnamese_text(text: str, threshold: float = 0.008) -> bool:
     """Diacritic density above `threshold`, AND at least one Vietnamese-exclusive letter.
 
-    The exclusivity requirement is what separates Vietnamese from other diacritic-bearing Latin
-    text. It is a presence test rather than a second density, because the two populations do not
-    overlap: measured over the 2026-08-18 captures, junk pages that passed on shared diacritics
-    alone carry zero VN-exclusive letters, while real Vietnamese pages sit at a median density of
-    0.12. Every threshold in [0, 0.002] therefore separates them identically.
-    """
+    The exclusivity requirement separates Vietnamese from other diacritic-bearing Latin text. It is
+    a presence test rather than a second density because the populations do not overlap: junk pages
+    that passed on shared diacritics carry zero VN-exclusive letters, real Vietnamese pages sit at a
+    median density of 0.12, so every threshold in [0, 0.002] separates them identically."""
     # NFC first. Vietnamese written with combining marks decomposes to bare Latin plus combining
     # codepoints, none of which are in either set, so a decomposed page scored as not Vietnamese.
     low = unicodedata.normalize("NFC", text or "").lower()

@@ -5,14 +5,12 @@ watch_ct_benign.py — the TLD- and age-matched BENIGN arm for P4, sampled from 
 WHY: `tinnhiem_benign` is 100% `.vn`; once the phishing arm dropped its `.vn` restriction, TLD
 alone would separate the arms — the artefact family already caught three times in this study.
 
-WHY NOT existing sources (measured 2026-08-03):
-  * urlscan — submission-biased toward threats (first page: `schwab-open.cc`, `s1ndlyvpn.online`);
-    sampling it for benign would seed the benign arm with phishing.
-  * crt.sh — TLD-wide queries not served (`%.cc` HTTP 502, `%.online` 60 s timeout).
-  * Tranco — benign but years old vs a days-old phishing arm; a comparator, not a match.
-
-Raw CT works because this is SAMPLING, not filtering: a few batches per tick is a uniform draw
-from everything getting a certificate, and the arm needs only a few hundred domains.
+WHY NOT existing sources (measured 2026-08-03): urlscan is submission-biased toward threats
+(first page: `schwab-open.cc`, `s1ndlyvpn.online`), so it would seed the benign arm with
+phishing; crt.sh does not serve TLD-wide queries (`%.cc` 502, `%.online` 60 s timeout); Tranco is
+years old against a days-old phishing arm — a comparator, not a match. Raw CT works because this
+is SAMPLING, not filtering: a few batches per tick is a uniform draw from everything getting a
+certificate, and the arm needs only a few hundred domains.
 
 AGE MATCHING: reading the log head would make benign `cert_age_days` ~0 by construction and
 manufacture "benign has newer certs". So `--age-days` names a target age, a binary search over
@@ -28,21 +26,19 @@ OUTPUT. `data/raw/ct_benign/detections.csv`, the schema `watch_host_infra.py` re
     "ct_benign": ("benign", "first_detected")
 to its SOURCES map and the infrastructure queue picks these up with no further wiring.
 
-THE .vn SUPPLEMENT (2026-08-21 amendment to P4's pre-registration). The arm above has never
-admitted a `.vn` name: TARGET_TLDS was measured over the phishing arm's non-.vn domains and
-`is_excluded` drops the suffix outright, so the registered `.vn` registry group had no benign
-support (0 of 7,226 on 2026-08-21 against 33 `.vn` phishing). `--stratum vn` is that supplement:
-the SAME sampler, age search and exclusions, minus exactly the two rules that bar `.vn`, written
-to its own directory (`data/raw/ct_benign_vn/`) and tagged by directory name as its own source.
-`.vn` is about one apex name in 2,700 in the logs, so the supplement reads the log tail
-SEQUENTIALLY from the age offset until `--target` names are found or `--max-entries` are read,
-instead of the few batches the matched arm draws. It fills `.vn` matching cells only; the
-analysis never draws it into off-`.vn` cells. The default stratum is unchanged by this flag.
+THE .vn SUPPLEMENT (2026-08-21 amendment to P4's pre-registration). The arm above never admits a
+`.vn` name — TARGET_TLDS was measured over the phishing arm's non-.vn domains and `is_excluded`
+drops the suffix — so the registered `.vn` group had no benign support (0 of 7,226 on 2026-08-21
+against 33 `.vn` phishing). `--stratum vn` is that supplement: the SAME sampler, age search and
+exclusions minus exactly the two rules that bar `.vn`, written to `data/raw/ct_benign_vn/` and
+tagged by directory name as its own source. `.vn` is about one apex in 2,700 in the logs, so the
+supplement reads the log tail SEQUENTIALLY from the age offset until `--target` names are found
+or `--max-entries` are read. It fills `.vn` matching cells only; the default stratum is unchanged.
+
 RUN:
-  python scripts/watch_ct_benign.py --age-days 3 --batches 4      # one cron tick
-  python scripts/watch_ct_benign.py --stratum vn --age-days 3    # the .vn supplement
-  python scripts/watch_ct_benign.py --age-days 14 --batches 2     # older stratum
-  python scripts/watch_ct_benign.py --dry-run                     # sample, print, write nothing
+  python scripts/watch_ct_benign.py --age-days 3 --batches 4    # one cron tick
+  python scripts/watch_ct_benign.py --stratum vn --age-days 3   # the .vn supplement
+  python scripts/watch_ct_benign.py --dry-run                   # sample, print, write nothing
 """
 from __future__ import annotations
 
@@ -61,12 +57,13 @@ import tldextract
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
-from audit_p4_labels import (HOSTED_SUFFIXES, VN_LEXICAL, load_blocklists,  # noqa: E402
+from audit_p4_labels import (HOSTED_SUFFIXES, VN_LEXICAL, load_blocklists,
                              registrable)
+from psl import apex
 
 # `registrable` reads the PSL with the private section on; this reads it with the private section
 # off. Neither answer is wrong — the pair is the measurement, see under_private_suffix.
@@ -86,10 +83,9 @@ def paths(stratum: str) -> tuple[str, str, str]:
 OUTDIR, DET_PATH, SEEN_PATH = paths("matched")
 FIELDS = ["domain", "first_detected", "tld", "ct_log", "entry_index", "cert_not_before"]
 
-# The phishing arm's TLD mix, measured 2026-08-03 over its 51 confirmed non-.vn domains:
-# com 25, net 6, cc 5, info 2, online 2, then one each of the rest. Collection is deliberately
-# BROADER than the target — matching is done at analysis time by subsampling, which is robust to
-# the phishing mix drifting, whereas matching at collection time bakes today's mix in forever.
+# The phishing arm's TLD mix, measured 2026-08-03 over its 51 confirmed non-.vn domains: com 25,
+# net 6, cc 5, info 2, online 2, then one each. Collection is deliberately BROADER than the
+# target -- matching happens at analysis time, which is robust to the phishing mix drifting.
 TARGET_TLDS = {"com", "net", "cc", "info", "online", "vip", "website", "bet", "site", "co",
                "org", "id", "me", "top", "su", "store", "xyz", "click", "link", "life"}
 
@@ -122,11 +118,9 @@ def leaf_timestamp(log: str, index: int) -> int | None:
 def find_offset(log: str, tree_size: int, target_ms: int, probes: int = 24) -> int | None:
     """Binary search the log for the first entry at or after `target_ms`.
 
-    Entries are appended in submission order, so leaf timestamps are monotone enough for this to
-    land within minutes of the target — which is all the age control the arm needs. Unreadable
-    probes (logs return errors for some ranges) shrink the window from whichever side is safe
-    rather than aborting the search.
-    """
+    Entries are appended in submission order, so leaf timestamps are monotone enough to land within
+    minutes of the target -- all the age control this arm needs. Unreadable probes shrink the window
+    from whichever side is safe rather than aborting the search."""
     lo, hi = 0, tree_size - 1
     for _ in range(probes):
         if lo >= hi:
@@ -146,11 +140,9 @@ def find_offset(log: str, tree_size: int, target_ms: int, probes: int = 24) -> i
 def names_from_entry(entry: dict) -> list[str]:
     """DNS names in one CT entry, for both leaf types.
 
-    An X509 entry carries the certificate in the leaf. A precert entry carries only the TBS
-    portion there, which no X.509 loader will accept on its own, so the certificate is read from
-    `extra_data` instead. Skipping precerts would be simpler and would throw away about half the
-    sample for no reason.
-    """
+    An X509 entry carries the certificate in the leaf; a precert carries only the TBS portion, which
+    no X.509 loader accepts alone, so the certificate is read from `extra_data`. Skipping precerts
+    would be simpler and would throw away about half the sample for no reason."""
     from cryptography import x509
 
     def sans(der: bytes) -> list[str]:
@@ -166,27 +158,24 @@ def names_from_entry(entry: dict) -> list[str]:
         extra = base64.b64decode(entry["extra_data"])           # precert: cert lives here
         ln = struct.unpack(">I", b"\x00" + extra[0:3])[0]
         return sans(extra[3:3 + ln])
-    except Exception:                                            # noqa: BLE001 - one bad leaf
+    except Exception:
         return []                                                # must never stop the tick
 
 
 def under_private_suffix(host: str) -> bool:
     """True when `host` is a tenant of a free-subdomain provider rather than a registration.
 
-    The apex test in main() cannot see these, and that is the leak this closes. Under a PSL
-    private-section suffix the registrable domain IS the full hostname, so a tenant name passes the
-    apex test as its own apex: a live run admitted `d2w2y0vo2fk78q.amplifyapp.com` exactly that way.
-    HOSTED_SUFFIXES does not catch it because AWS Amplify is not on that list, and no hand-listed
-    set ever will be complete — the PSL private section runs to thousands of entries and grows.
+    The apex test in main() cannot see these. Under a PSL private-section suffix the registrable
+    domain IS the full hostname, so a tenant passes the apex test as its own apex -- a live run
+    admitted `d2w2y0vo2fk78q.amplifyapp.com` that way, and HOSTED_SUFFIXES missed it because no
+    hand-listed set of providers is ever complete.
 
-    So the question is asked of the PSL itself, by reading it twice. A name whose private-section
-    registrable differs from its ICANN-only registrable is by definition sitting under a suffix
-    somebody registered as a hosting boundary, whether or not we had heard of that provider; a real
-    registration reads identically both ways. That difference IS the definition of hosted, so it is
-    the primary test and HOSTED_SUFFIXES stays only as belt and braces.
-    """
+    So the question is asked of the PSL itself, by reading it twice: a name whose private-section
+    registrable differs from its ICANN-only registrable is by definition under a suffix somebody
+    registered as a hosting boundary, and a real registration reads identically both ways. That
+    difference IS the definition, so it is the primary test and HOSTED_SUFFIXES is belt and braces."""
     h = str(host).lower()
-    return registrable(h) != _ICANN_ONLY(h).registered_domain.lower()
+    return registrable(h) != apex(_ICANN_ONLY(h)).lower()
 
 
 def is_excluded(host: str, blocked: set[str], brand_re, keep_vn: bool = False) -> bool:
@@ -251,16 +240,14 @@ def main() -> int:
                      - _dt.timedelta(days=args.age_days)).timestamp() * 1000)
 
     kept, scanned, read = [], 0, 0
-    # The matched arm draws `--batches` short batches per log. The .vn supplement instead walks
-    # the tail from the age offset in the largest batches the log will serve, across as many
-    # logs as it takes, until `--target` names are kept or `--max-entries` entries are read.
+    # The matched arm draws `--batches` short batches per log. The .vn supplement instead walks the
+    # tail from the age offset in the largest batches the log serves, until `--target` or `--max-entries`.
     if vn:
         # Depth, not breadth: every log costs ~24 probe requests to find the age offset, so the
         # supplement walks a few logs far rather than forty logs shallowly.
         logs = logs[:4]
-    # Logs serve far fewer entries per request than asked (the first live tick got ~85 of 256),
-    # so the supplement's per-log budget is in ENTRIES READ, not requests: a quarter of
-    # --max-entries per log, with a request cap only as a runaway guard.
+    # Logs serve far fewer entries per request than asked (~85 of 256 on the first live tick), so the
+    # supplement's per-log budget is in ENTRIES READ, with a request cap only as a runaway guard.
     per_log = args.batches if not vn else 400
     per_log_entries = args.max_entries // len(logs) if vn else None
     bsize = args.batch_size if not vn else 256
@@ -299,16 +286,14 @@ def main() -> int:
                     scanned += 1
                     h = host.lower().lstrip("*.")
                     reg = registrable(h)
-                    # One certificate lists many SANs that are not registrations of their own
-                    # (`www.` duplicates, tenant infra like `...prd.workdaysuv.com`). P4's unit
-                    # is the registration, so only the apex counts — subdomains would file a
-                    # host's DNS/TLS under its tenants, the `pages.dev` collapse in reverse.
+                    # One certificate lists many SANs that are not registrations of their own (`www.` duplicates,
+                    # tenant infra). P4's unit is the registration, so only the apex counts -- subdomains would file
+                    # a host's DNS/TLS under its tenants, the `pages.dev` collapse in reverse.
                     if h not in (reg, "www." + reg):
                         continue
                     tld = reg.rsplit(".", 1)[-1]
-                    # The stratum's TLD rule: the matched arm keeps the allow-list; the .vn
-                    # supplement keeps exactly the names the allow-list could never admit
-                    # (`.vn` and every `.com.vn`/`.gov.vn`/... second-level suffix ends in `vn`).
+                    # The stratum's TLD rule: the matched arm keeps the allow-list; the .vn supplement keeps exactly
+                    # the names it could never admit (`.vn` and every second-level `.com.vn`/`.gov.vn` suffix).
                     if (tld != "vn" if vn else tld not in TARGET_TLDS) or reg in seen:
                         continue
                     if reg in official:

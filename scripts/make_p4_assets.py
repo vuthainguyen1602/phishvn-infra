@@ -3,44 +3,37 @@
 make_p4_assets.py — P4's results machinery, built before the data matured.
 
 P4 (papers/P4_infra) is a pre-registered design: population, features, models and the success
-criterion are frozen in §5 of the paper. This script IS that protocol, executable. It always
-regenerates the pre-outcome monitoring assets (progress sentence, capture-audit table, feature-
-availability table) so the paper tracks accumulation honestly, and it refuses to fit any model
-until the pre-registered trigger (n ≥ 500 conditioned phishing registrable domains) — at which
-point the same command fills the main-comparison table with no new decisions left to make.
+criterion are frozen in §5. This script IS that protocol, executable. It always regenerates the
+pre-outcome monitoring assets (progress sentence, capture-audit table, feature-availability table)
+and refuses to fit any model until the registered trigger (n >= 500 conditioned phishing
+registrable domains), at which point the same command fills the main table with no decisions left.
 
     python scripts/make_p4_assets.py            # regenerate monitoring assets; fit iff triggered
-    python scripts/make_p4_assets.py --smoke    # prove the fitting path end-to-end on
-                                                # LABEL-PERMUTED data; writes only to
-                                                # data/interim/p4_smoke/, never into papers/
+    python scripts/make_p4_assets.py --smoke    # the fitting path on LABEL-PERMUTED data;
+                                                # writes only to data/interim/p4_smoke/
 
-POPULATION RULE CHANGE (2026-08-03): the original both-arms .vn cut selected exactly the slice
-with no phishing — of 32 conditioned .vn "phishing" domains, zero blocklist-corroborated, ten
-(31%) verifiably legitimate (bidv.vn, viettelpost.vn, sepay.vn, nganluong.vn, vnptpay.vn...).
-Mechanism (watch_urlscan_brands.py:23): urlscan's free tier can't filter maliciousness, so
-label=phish means only "hostname contains a Vietnamese brand token" — worst on .vn, since VN
-phishing is ~2.7% .vn (P9) while VN companies are there. Repair: drop the TLD cut, let
-audit_p4_labels.audit() decide membership (51 confirmed non-.vn phishing domains, ~12/day).
+POPULATION RULE CHANGE (2026-08-03): the original both-arms .vn cut selected exactly the slice with
+no phishing — of 32 conditioned .vn "phishing" domains, zero blocklist-corroborated, ten (31%)
+verifiably legitimate (bidv.vn, viettelpost.vn, sepay.vn...). Mechanism
+(watch_urlscan_brands.py:23): urlscan's free tier cannot filter maliciousness, so label=phish means
+only "hostname contains a Vietnamese brand token" — worst on .vn, since VN phishing is ~2.7% .vn
+(P9) while VN companies are there. Repair: drop the TLD cut, let audit_p4_labels.audit() decide.
 
-Population (§5, revised): phishing = live stratum only (first_detected >= 2026-07-30), admitted
-on a corroborated / credential_form / content_confirmed / vn_lexical verdict; uncorroborated and
-no_capture are honest unknowns, excluded_legitimate the error that forced the rewrite. Benign arm
-= ct_benign (watch_ct_benign.py, TLD- and age-matched from raw CT logs). tinnhiem_benign is 100%
-.vn so never pooled — kept as a separate deployment-realistic, age-mismatched comparator. Free-
-hosting-suffix names: own stratum in both arms (no registration of their own; registration-level
-features belong to the provider) — counted, never modelled. Registry-wildcard names (artefact #5,
-2026-08-16): some registries answer every name under their TLD (dotPH resolves any unregistered
-.ph name to its ParkLogic parking IP), so a name can resolve, serve 443 and capture HTTP-200
-without ever being REGISTERED — 708 of 1,036 conditioned "phishing" domains (68%) were this
-(one shared IP, zero NS/MX, unverifiable cert, capture = registry ad page). Screened from EVERY
-arm via capture-time a_records vs a live probe (audit_p4_labels.is_registry_wildcard), counted in
-the funnel, modelled nowhere. Survivors deduplicated to the most complete record per registrable
-domain, conditioned on resolving AND serving TLS.
+Population (§5, revised): phishing = live stratum only (first_detected >= 2026-07-30), admitted on
+a corroborated / credential_form / content_confirmed / vn_lexical verdict; uncorroborated and
+no_capture are honest unknowns, excluded_legitimate the error that forced the rewrite. Benign arm =
+ct_benign (TLD- and age-matched from raw CT logs); tinnhiem_benign is 100% .vn so it is never
+pooled, only kept as an age-mismatched comparator. Free-hosting-suffix names are their own stratum
+in both arms (registration-level features belong to the provider) — counted, never modelled.
+Registry-wildcard names (artefact #5, 2026-08-16) resolve, serve 443 and capture HTTP-200 without
+ever being REGISTERED — 708 of 1,036 conditioned "phishing" domains were this — and are screened
+from EVERY arm by capture-time a_records vs a live probe (audit_p4_labels.is_registry_wildcard),
+counted in the funnel and modelled nowhere. Survivors are deduplicated to the most complete record
+per registrable domain, conditioned on resolving AND serving TLS.
 
 Features (DNS/TLS shape only): cert age at capture, validity length, issuer group, SAN count,
-A-record TTL, NS count + provider group, MX presence (mx_count stored, presence used), CNAME
-presence. Excluded by construction: whois_* and its missingness, tls_present/resolution status,
-the TLD, anything lexical.
+A-record TTL, NS count + provider group, MX presence, CNAME presence. Excluded by construction:
+whois_* and its missingness, tls_present/resolution status, the TLD, anything lexical.
 """
 from __future__ import annotations
 
@@ -54,14 +47,14 @@ import pandas as pd
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
-from paired_eval import corrected_paired_t, wilson  # noqa: E402  (shared stats; house rule)
-from genfile import write_generated  # noqa: E402  (atomic writes; a crash must not truncate)
-from compphish_features import extract as lex_extract  # noqa: E402  (the lexical channel)
-from audit_p4_labels import (audit, is_hosted_subdomain,  # noqa: E402  (the label gate itself)
+from paired_eval import corrected_paired_t, wilson
+from genfile import write_generated
+from compphish_features import extract as lex_extract
+from audit_p4_labels import (audit, is_hosted_subdomain,
                              is_registry_wildcard, load_content_map, registrable)
 
 INFRA = "data/raw/host_infra/host_infra.csv"
@@ -71,25 +64,21 @@ SECTIONS = "papers/P4_infra/sections"
 SMOKE_DIR = "data/interim/p4_smoke"
 CONTENT_MAP = "data/interim/p4_content_map.csv"
 WATCHER_START = pd.Timestamp("2026-07-30")
-# The collector's clock. Every duration in the dataset is taken in this ONE zone (2026-08-21
-# fix): `captured_at` and the collector-stamped `first_detected` are written naive local by
-# watch_host_infra.py; the CT-sourced rows' `first_detected` is the leaf time, naive UTC
-# (watch_ct_benign.py); `tls_not_before/after` carry an explicit UTC offset. Parsing all four
-# with utc=True read the naive-local columns as UTC and inflated every certificate age by 7 h.
+# The collector's clock. Every duration is taken in ONE zone (2026-08-21 fix): `captured_at` and
+# collector-stamped `first_detected` are naive local, CT rows' `first_detected` is naive UTC,
+# `tls_not_before/after` carry an offset. Parsing all four utc=True inflated cert age by 7 h.
 LOCAL_TZ = "Asia/Ho_Chi_Minh"
 CT_SOURCES = ("ct_benign", "ct_benign_vn")
 TRIGGER, CONFIRM = 500, 1000
 
 # Positive-evidence verdicts, strongest first: blocklist-named, rendered credential form (added
-# 2026-08-16; only 18% of Vietnamese-rendering pages ask for a password, so language and
-# harvesting are distinct signals), rendered Vietnamese, or the name spells a Vietnamese word.
-# Everything else audit_p4_labels returns is an unknown or an exoneration — an arm built from
-# unknowns measures brand-token co-occurrence, not phishing.
+# 2026-08-16 -- only 18% of Vietnamese-rendering pages ask for a password, so language and
+# harvesting are distinct), rendered Vietnamese, or a name that spells a Vietnamese word.
+# Everything else is unknown or exoneration: an arm of unknowns measures token co-occurrence.
 PHISH_VERDICTS = ("corroborated", "credential_form", "content_confirmed", "vn_lexical")
 BENIGN_SOURCE = "ct_benign"
-# The .vn supplement of the matched arm (PREREG amendment 2026-08-21): its own source, admitted
-# to the SAME arm under the same conditioning, but at matching time it may fill .vn cells only
-# (see match_benign). It is never drawn into an off-.vn cell and never pooled as a comparator.
+# The .vn supplement of the matched arm (PREREG amendment 2026-08-21): its own source, admitted to
+# the SAME arm under the same conditioning, but it may fill .vn cells only, and is never pooled.
 SUPPLEMENT_SOURCE = "ct_benign_vn"
 BENIGN_SOURCES = (BENIGN_SOURCE, SUPPLEMENT_SOURCE)
 COMPARATOR_SOURCE = "tinnhiem_benign"
@@ -153,10 +142,9 @@ def localise_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 def build_population() -> tuple[pd.DataFrame, dict]:
     df = pd.read_csv(INFRA, low_memory=False)
     df = localise_timestamps(df)
-    # Recompute registered_domain with the audit's extractor: pre-2026-08-03 collector rows lack
-    # the PSL private section (watch_host_infra.py:87), collapsing free-hosting names onto their
-    # host (mbbank.pages.dev -> pages.dev), so this keeps study unit, label gate and
-    # hosted-subdomain stratum naming the same objects.
+    # Recompute registered_domain with the audit's extractor: pre-2026-08-03 collector rows lack the
+    # PSL private section, collapsing free-hosting names onto their host (mbbank.pages.dev ->
+    # pages.dev), so this keeps study unit, label gate and stratum naming the same objects.
     df["registered_domain"] = df["domain"].map(registrable)
     df = df[df["registered_domain"].astype(bool)]
     funnel: dict[str, int] = {}
@@ -170,8 +158,7 @@ def build_population() -> tuple[pd.DataFrame, dict]:
               file=sys.stderr)
 
     # Capture-time addresses per registrable domain, unioned across attempts: a domain that ever
-    # resolved beyond the wildcard is never mistaken for it, and asset builds avoid the audit's
-    # live-re-resolution fallback.
+    # resolved beyond the wildcard is never mistaken for it, and builds avoid live re-resolution.
     ipmap: dict[str, frozenset] = {}
     for reg, ips in zip(df["registered_domain"],
                         df["a_records"].fillna("").astype(str).str.split(";")):
@@ -184,9 +171,8 @@ def build_population() -> tuple[pd.DataFrame, dict]:
                       ipmap=ipmap)
     verdict = dict(audit_tab[["registered_domain", "verdict"]].itertuples(index=False, name=None))
     stage_removed: dict[str, str] = {}     # phishing candidates only: where each one left
-    # Time-matching means "collected by the same watcher over the same period", not strict
-    # containment in the phishing arm's capture span — the benign queue runs on its own cadence
-    # and can lag or lead the last phishing tick by hours within the same collection period.
+    # Time-matching means "collected by the same watcher over the same period", not strict containment:
+    # the benign queue runs on its own cadence and can lag or lead the last phishing tick by hours.
     be = df[(df["label"] == "benign") & (df["captured_at"] >= WATCHER_START)]
 
     arms = []
@@ -201,10 +187,9 @@ def build_population() -> tuple[pd.DataFrame, dict]:
         if name == "phish":
             stage_removed.update((d, "hosted_subdomain") for d in arm.loc[hosted, "registered_domain"])
         arm = arm[~hosted]
-        # Wildcard screen applies to every arm — a registry-wildcard name has no registration to
-        # study whichever arm claims it. In practice only the phishing feed is contaminated (the
-        # benign arms sample certificates, which require registration): benign cells record ~0,
-        # and recording them is what shows that.
+        # Wildcard screen applies to every arm -- a wildcard name has no registration to study whichever
+        # arm claims it. Only the phishing feed is contaminated in practice (the benign arms sample
+        # certificates, which require registration), and recording ~0 for them is what shows that.
         wild = arm["registered_domain"].map(
             lambda d: is_registry_wildcard(d, ipmap.get(d))).astype(bool)
         funnel[f"{name}_wildcard"] = arm.loc[wild, "registered_domain"].nunique()
@@ -303,10 +288,9 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
     asof = pop["captured_at"].max().date()
     n_ph, n_be = funnel["phish_conditioned"], funnel["benign_conditioned"]
     n_cmp, n_vn = funnel[f"{COMPARATOR_ARM}_conditioned"], funnel["phish_vn"]
-    # The benign arm's own .vn count. Calling ct_benign "TLD-matched" while never reporting it let
-    # a degenerate case pass unstated: the arm holds zero .vn, so on the .vn slice of the phishing
-    # arm -- which is where the artefact this design exists to neutralise actually lives -- there
-    # is nothing to match against, and matching cannot remove what it has no counterpart for.
+    # The benign arm's own .vn count. Calling ct_benign "TLD-matched" while never reporting it let a
+    # degenerate case pass unstated: the arm holds zero .vn, so on the .vn slice -- where the
+    # artefact this design neutralises actually lives -- there is nothing to match against.
     be_vn = int(pop[(pop["arm"] == "benign")]["registered_domain"]
                 .astype(str).str.endswith(".vn").sum())
     with io.StringIO() as f:
@@ -335,11 +319,9 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                    "The trigger has not fired; no outcome model has been fitted.") + "\n")
         write_generated(f"{SECTIONS}/gen_progress.tex", f.getvalue())
     with io.StringIO() as f:
-        # The per-arm hosted-subdomain and wildcard removals used to be spelled out in the
-        # caption; they are the differences between consecutive rows of the tabular below, and
-        # the reason both classes are counted-but-not-modelled is stated in the body
-        # (\S\ref{ssec:wildcard} and the deviation record), so the caption no longer repeats it.
-        # The comparator column's never-pooled rule is stated in gen_progress, beside the table.
+        # The per-arm hosted-subdomain and wildcard removals are the differences between consecutive rows
+        # below, and why both classes are counted-but-not-modelled is in the body, so the caption no
+        # longer repeats it. The comparator's never-pooled rule is stated in gen_progress.
         f.write("\\begin{table}[t]\\centering\n"
                 "\\caption{Population funnel at the current snapshot: unique registrable domains "
                 "surviving each cut of \\S\\ref{sec:protocol}, per arm; the label gate applies "
@@ -381,11 +363,9 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
         f.write("\\bottomrule\\end{tabular}\\end{table}\n")
         write_generated(f"{SECTIONS}/tab_availability.tex", f.getvalue())
 
-    # Single-arm marginal of the benign pool's cert age, split at the 2026-08-16 age-rotation
-    # fix (the collector pinned AGE=1 for every tick before it). One arm's marginal reveals
-    # nothing about arm separation, so this is safe to watch pre-trigger — and it is the one
-    # place the pre-fix age glut can surface BEFORE it becomes an artefact in a fitted model:
-    # cert_age_days is a registered feature, and matching draws from this pool.
+    # Single-arm marginal of the benign pool's cert age, split at the 2026-08-16 age-rotation fix. One
+    # arm's marginal reveals nothing about separation, so it is safe pre-trigger -- and it is the one
+    # place the pre-fix age glut can surface BEFORE it becomes an artefact in a fitted model.
     be_age = pop[(pop["arm"] == "benign")][["captured_at", "cert_age_days"]].dropna()
     fix = pd.Timestamp("2026-08-16")
     rows = []
@@ -411,8 +391,8 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
 
 
 # ----------------------------------------------------------------- analysis-time procedures
-# Frozen 2026-08-17 (deviation record, §5.7 of the paper; PREREG_trigger_analysis.md pins the
-# commit). Everything below runs only at trigger (or under --smoke on randomised labels).
+# Frozen 2026-08-17 (deviation record §5.7; the pre-registration pins the commit). Everything
+# below runs only at trigger, or under --smoke on randomised labels.
 
 SEEDS = 20                 # raised from 5 on 2026-08-17, before any trigger (amendment)
 MATCH_RATIO = 3            # benign : phishing ceiling per matching cell
@@ -461,8 +441,7 @@ def match_benign(d: pd.DataFrame, seed: int) -> tuple[pd.DataFrame, float]:
         want += wish
         pool = be_cells[(be_cells["_sfx"] == sfx) & (be_cells["_bin"] == b)]
         # Amendment 2026-08-21: the .vn supplement fills .vn cells ONLY. Its rows are all .vn by
-        # construction, so this is a guard against a future change of the sampler, not a filter
-        # that fires today; it is written down so the rule is in the code that draws the cells.
+        # construction, so this guards a future change of the sampler, not today's data.
         if not str(sfx).endswith("vn"):
             pool = pool[pool["source"] != SUPPLEMENT_SOURCE]
         take = min(wish, len(pool))
@@ -492,12 +471,11 @@ def qmap_scores(scores: np.ndarray, is_vn: np.ndarray, cal_be_scores: np.ndarray
 
 
 def fit_main(pop: pd.DataFrame, out_dir: str, smoke: bool) -> None:
-    """The pre-registered main comparison (§5.3–5.4, procedures frozen 2026-08-17): lexical
-    baseline vs URL+infrastructure fusion, on the gated phishing arm against the TLD/age-MATCHED
-    ct_benign subsample. Temporal split at the registered 0.70 origin (0.60/0.65 descriptive),
-    SEEDS seeds; scores benign-quantile-mapped per registry group; the confirmatory quantity is
-    the .vn miss rate at the corpus FPR <= 0.30 budget, CatBoost fusion minus CatBoost lexical,
-    corrected paired t (BH over the m=2 confirmatory family with the cascade test)."""
+    """The pre-registered main comparison (§5.3-5.4, frozen 2026-08-17): lexical baseline vs
+    URL+infrastructure fusion, on the gated phishing arm against the TLD/age-MATCHED ct_benign
+    subsample. Temporal split at the registered 0.70 origin, SEEDS seeds, scores
+    benign-quantile-mapped per registry group. The confirmatory quantity is the .vn miss rate at
+    the corpus FPR <= 0.30 budget, fusion minus lexical, corrected paired t, BH over m=2."""
     from sklearn.compose import ColumnTransformer
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.impute import SimpleImputer

@@ -2,18 +2,17 @@
 """
 make_p4b_assets.py — the generated assets of the PhishVN-Infra data article (papers/P4b_infra_data).
 
-WHAT THIS IS. A thin wrapper over the population builder the companion infrastructure study
-already ships (`make_p4_assets.build_population`) and over the funnel/accrual CSVs
-`make_p4_funnel.py` writes. It DESCRIBES the corpus: file table, per-source row counts, the
-headline counts sentence, feature availability per arm, the benign arm's certificate-age
-marginal, and a survivorship sentence from the capture audit's CSV. Every number the article
-prints comes from here, so the article refreshes with the data until the deposit freezes.
+WHAT THIS IS. A thin wrapper over the population builder the companion infrastructure study ships
+(`make_p4_assets.build_population`) and the funnel/accrual CSVs `make_p4_funnel.py` writes. It
+DESCRIBES the corpus: file table, per-source row counts, headline counts sentence, feature
+availability per arm, the benign arm's certificate-age marginal, and a survivorship sentence from
+the capture audit. Every number the article prints comes from here, so it refreshes with the data
+until the deposit freezes.
 
-WHAT THIS IS NOT. A results generator. It never imports, let alone calls, `fit_main`; it prints
-no model metric; it compares no arm with another. A data article in Data in Brief describes
-data; the companion study is the one that will test them, after its registered trigger. The
-claims checker (`check_paper_claims.py --paper p4b`) re-derives every count printed here from
-the CSVs and forbids evaluation vocabulary in the built PDF.
+WHAT THIS IS NOT. A results generator. It never imports `fit_main`, prints no model metric,
+compares no arm with another: a Data in Brief article describes data, and the companion study is
+the one that will test them after its registered trigger. `check_paper_claims.py --paper p4b`
+re-derives every count from the CSVs and forbids evaluation vocabulary in the built PDF.
 
     python scripts/make_p4b_assets.py
 
@@ -23,10 +22,10 @@ Reads  data/raw/host_infra/host_infra.csv, data/processed/p4/p4_funnel.csv, p4_a
        present), data/processed/dataset_url.csv (the P1 corpus, for the overlap count).
 Writes papers/P4b_infra_data/sections/{tab_files,tab_sources,gen_counts,gen_macros,
        tab_funnel,tab_verdicts,tab_timestamps,tab_availability,tab_benign_age,gen_perish}.tex
-       and draws papers/P4b_infra_data/figures/{cert_age_by_arm,funnel_accrual_p4b}.pdf.
-       The accrual panel is this article's own: observed admissions per detection day and their
-       running total, with no trigger line, no projection and no calendar bound — those belong
-       to the companion study's pre-registration, not to a description of a table.
+       and papers/P4b_infra_data/figures/{cert_age_by_arm,funnel_accrual_p4b}.pdf. The accrual
+       panel is this article's own: observed admissions per detection day and their running total,
+       with no trigger line, projection or calendar bound — those belong to the companion study's
+       pre-registration, not to a description of a table.
 """
 from __future__ import annotations
 
@@ -42,19 +41,19 @@ import pandas as pd
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
-    from _path import ROOT, add_script_dirs  # noqa: E402
+    from _path import ROOT, add_script_dirs
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 
-from genfile import write_generated  # noqa: E402
+from genfile import write_generated
 # The population rule is imported, never restated: the deposit must be exactly the population the
 # companion study analyses, or the data article describes a different object from the one cited.
-from make_p4_assets import (ARM_COLUMNS, COMPARATOR_ARM, FEATURES_CAT,  # noqa: E402
+from make_p4_assets import (ARM_COLUMNS, COMPARATOR_ARM, FEATURES_CAT,
                             FEATURES_NUM, INFRA, TRIGGER, WATCHER_START, build_population,
                             most_complete)
-from make_p4_funnel import accrual_rows, funnel_rows, write_csv  # noqa: E402  (same CSVs)
-from audit_p4_labels import is_registry_wildcard, registrable  # noqa: E402
+from make_p4_funnel import accrual_rows, funnel_rows, write_csv
+from audit_p4_labels import is_registry_wildcard, registrable
 
 SEC = os.path.join(ROOT, "papers", "P4b_infra_data", "sections")
 FIG = os.path.join(ROOT, "papers", "P4b_infra_data", "figures")
@@ -63,9 +62,8 @@ INTERIM = os.path.join(ROOT, "data", "interim")
 FUNNEL_CSV = os.path.join(PROC, "p4", "p4_funnel.csv")
 ACCRUAL_CSV = os.path.join(PROC, "p4", "p4_accrual.csv")
 DATASET_CSV = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
-# Written by build_population (the per-candidate verdict table of every live-stratum candidate,
-# with the funnel stage that removed each) and by the audit's wildcard probe; both are inputs
-# here, never recomputed, so the article cannot describe a different audit from the one run.
+# Written by build_population (the per-candidate verdict table, with the funnel stage that removed
+# each) and by the audit's wildcard probe; both are inputs here, never recomputed.
 LABEL_AUDIT_CSV = os.path.join(PROC, "p4", "p4_label_audit.csv")
 PROBE_CSV = os.path.join(PROC, "p4", "p4_wildcard_probe.csv")
 CONTENT_MAP_CSV = os.path.join(INTERIM, "p4_content_map.csv")
@@ -87,20 +85,18 @@ SOURCE_LABEL = {
     "ct_benign_vn": ("benign", "CT-sampled \\texttt{.vn} supplement"),
 }
 
-# Timestamp conventions per source, as the collectors write them (verified against the
-# collectors 2026-08-21: watch_host_infra stamps captured_at with datetime.now(); the urlscan,
-# blacklist, blocklist and comparator collectors stamp first_detected with the local clock;
-# watch_ct_brands writes crt.sh's UTC timestamp and watch_ct_benign the log's leaf timestamp,
-# both naive UTC; tls_* and whois_* carry +00:00). A source absent from this dict is a bug.
+# Timestamp conventions per source, as the collectors write them (verified 2026-08-21):
+# watch_host_infra stamps captured_at with datetime.now(); the urlscan, blacklist, blocklist and
+# comparator collectors stamp first_detected with the local clock; the two CT collectors write
+# naive UTC; tls_* and whois_* carry +00:00. A source absent from this dict is a bug.
 TZ_FIRST = {
     "vn_phishing_live": "naive local", "chongluadao_live": "naive local",
     "urlscan_brands": "naive local", "tinnhiem_benign": "naive local",
     "ct_brands": "naive UTC", "ct_benign": "naive UTC", "ct_benign_vn": "naive UTC",
 }
 
-# The deposit, as PLAN §3 fixes it: (path in the zip, local file that will fill it or None,
-# unit, contents). Row counts are computed from the local file; a data file that does not
-# exist yet (a source that has not written its first row) prints 0, never a placeholder.
+# The deposit, as PLAN §3 fixes it: (path in the zip, local file or None, unit, contents). Row
+# counts come from the local file; a source that has not written its first row prints 0.
 DEPOSIT = [
     ("README.md", None, "", "Overview, composition counts, usage notes"),
     ("LICENSE", None, "", "CC BY 4.0 licence text"),
@@ -419,12 +415,10 @@ def write_availability(pop: pd.DataFrame) -> None:
 
 def write_benign_age(pop: pd.DataFrame) -> None:
     be_age = pop[(pop["arm"] == "benign")][["captured_at", "cert_age_days"]].dropna()
-    # Three regimes, not two. 2026-08-16: the cron went hourly, so `hour % 4` could finally visit
-    # all four targets instead of being pinned at 1 d by a */4 line. 2026-08-24: the four targets
-    # turned out to sit inside ONE quartile of the phishing arm's certificate age, starving three
-    # of the four matching cells, so the rotation widened to six over `hour % 6`. A reader matching
-    # on certificate age has to know which window a row came from; collapsing the last two would
-    # average a distribution that was deliberately changed.
+    # Three regimes, not two. 2026-08-16: the cron went hourly, so `hour % 4` could finally visit all
+    # four targets. 2026-08-24: those four turned out to sit inside ONE quartile of the phishing arm's
+    # certificate age, starving three matching cells, so the rotation widened to six. A reader
+    # matching on certificate age has to know which window a row came from.
     fix, widen = pd.Timestamp("2026-08-16"), pd.Timestamp("2026-08-24")
     rows = []
     for label, sub in (("collected before 2026-08-16 (target age pinned at 1\\,d)",
@@ -616,10 +610,9 @@ def main() -> int:
             return 1
     df = pd.read_csv(INFRA, low_memory=False)
     pop, funnel = build_population()   # also writes p4_label_audit.csv and p4_wildcard_probe.csv
-    # The funnel and accrual CSVs are rewritten from THIS population, with the companion's own
-    # functions: the wildcard screen live-resolves a candidate that never recorded an address, so
-    # two builds minutes apart can differ by a domain, and every number in this article must come
-    # from one build. Same schema, same generator, so the companion's copy is simply refreshed.
+    # The funnel and accrual CSVs are rewritten from THIS population with the companion's own
+    # functions: the wildcard screen live-resolves a candidate that never recorded an address, so two
+    # builds minutes apart can differ by a domain, and every number here must come from one build.
     write_csv(FUNNEL_CSV, funnel_rows(funnel))
     write_csv(ACCRUAL_CSV, accrual_rows(pop))
     os.makedirs(SEC, exist_ok=True)
