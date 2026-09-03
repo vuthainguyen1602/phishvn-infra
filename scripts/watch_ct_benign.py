@@ -26,7 +26,7 @@ OUTPUT. `data/raw/ct_benign/detections.csv`, the schema `watch_host_infra.py` re
     "ct_benign": ("benign", "first_detected")
 to its SOURCES map and the infrastructure queue picks these up with no further wiring.
 
-THE .vn SUPPLEMENT (2026-08-21 amendment to P4's pre-registration). The arm above never admits a
+THE .vn SUPPLEMENT (2026-08-21 amendment to P4's pre-specification). The arm above never admits a
 `.vn` name — TARGET_TLDS was measured over the phishing arm's non-.vn domains and `is_excluded`
 drops the suffix — so the registered `.vn` group had no benign support (0 of 7,226 on 2026-08-21
 against 33 `.vn` phishing). `--stratum vn` is that supplement: the SAME sampler, age search and

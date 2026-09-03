@@ -2,11 +2,10 @@
 """
 make_p4_assets.py — P4's results machinery, built before the data matured.
 
-P4 (papers/P4_infra) is a pre-registered design: population, features, models and the success
-criterion are frozen in §5. This script IS that protocol, executable. It always regenerates the
-pre-outcome monitoring assets (progress sentence, capture-audit table, feature-availability table)
-and refuses to fit any model until the registered trigger (n >= 500 conditioned phishing
-registrable domains), at which point the same command fills the main table with no decisions left.
+P4 (papers/P4_infra) is a time-stamped pre-specified design: population, features, models and the
+success criterion are frozen in §5. This script IS that protocol, executable. It always regenerates
+the pre-outcome monitoring assets and refuses to fit until BOTH the candidate trigger and the
+trusted-positive outcome gate are satisfied. Candidate-screen verdicts never become model labels.
 
     python scripts/make_p4_assets.py            # regenerate monitoring assets; fit iff triggered
     python scripts/make_p4_assets.py --smoke    # the fitting path on LABEL-PERMUTED data;
@@ -56,6 +55,7 @@ from genfile import write_generated
 from compphish_features import extract as lex_extract
 from audit_p4_labels import (audit, is_hosted_subdomain,
                              is_registry_wildcard, load_content_map, registrable)
+from p4_outcome_gate import OUTCOME_LABELS, trusted_positive_population
 
 INFRA = "data/raw/host_infra/host_infra.csv"
 DATASET = "data/processed/p4/p4_infra_dataset.csv"
@@ -293,6 +293,8 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
     # artefact this design neutralises actually lives -- there is nothing to match against.
     be_vn = int(pop[(pop["arm"] == "benign")]["registered_domain"]
                 .astype(str).str.endswith(".vn").sum())
+    _, outcome_gate = trusted_positive_population(pop, TRIGGER)
+    gate_reason_tex = outcome_gate.reason.replace("_", r"\_")
     with io.StringIO() as f:
         f.write(f"As of {asof}: ${n_ph}$ conditioned phishing registrable domains admitted by the "
                 f"label gate of \\S\\ref{{sec:protocol}} (${100 * n_ph // TRIGGER}\\%$ of the "
@@ -314,9 +316,14 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                    "The content-evidence map was absent for this snapshot, so the "
                    "\\emph{content-confirmed} class could not contribute and the phishing arm is "
                    "undercounted. ")
-                + ("The trigger has fired; the main comparison below is live."
-                   if n_ph >= TRIGGER else
-                   "The trigger has not fired; no outcome model has been fitted.") + "\n")
+                + (f"The candidate trigger has fired, but the outcome remains locked: "
+                   f"{gate_reason_tex}."
+                   if n_ph >= TRIGGER and not outcome_gate.unlocked else
+                   "Both the candidate trigger and trusted-positive gate have fired; the "
+                   "confirmatory outcome path is unlocked."
+                   if outcome_gate.unlocked else
+                   f"The candidate trigger has not fired, and the outcome-label gate is also "
+                   f"locked ({gate_reason_tex}); no outcome model has been fitted.") + "\n")
         write_generated(f"{SECTIONS}/gen_progress.tex", f.getvalue())
     with io.StringIO() as f:
         # The per-arm hosted-subdomain and wildcard removals are the differences between consecutive rows
@@ -391,7 +398,7 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
 
 
 # ----------------------------------------------------------------- analysis-time procedures
-# Frozen 2026-08-17 (deviation record §5.7; the pre-registration pins the commit). Everything
+# Frozen 2026-08-17 (deviation record §5.7; the pre-specification pins the commit). Everything
 # below runs only at trigger, or under --smoke on randomised labels.
 
 SEEDS = 20                 # raised from 5 on 2026-08-17, before any trigger (amendment)
@@ -471,7 +478,7 @@ def qmap_scores(scores: np.ndarray, is_vn: np.ndarray, cal_be_scores: np.ndarray
 
 
 def fit_main(pop: pd.DataFrame, out_dir: str, smoke: bool) -> None:
-    """The pre-registered main comparison (§5.3-5.4, frozen 2026-08-17): lexical baseline vs
+    """The time-stamped pre-specified main comparison (§5.3-5.4, frozen 2026-08-17): lexical baseline vs
     URL+infrastructure fusion, on the gated phishing arm against the TLD/age-MATCHED ct_benign
     subsample. Temporal split at the registered 0.70 origin, SEEDS seeds, scores
     benign-quantile-mapped per registry group. The confirmatory quantity is the .vn miss rate at
@@ -486,6 +493,10 @@ def fit_main(pop: pd.DataFrame, out_dir: str, smoke: bool) -> None:
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
     from catboost import CatBoostClassifier
 
+    if not smoke:
+        pop, outcome_gate = trusted_positive_population(pop, TRIGGER)
+        if not outcome_gate.unlocked:
+            raise RuntimeError("P4 outcome is locked: " + outcome_gate.reason)
     d = pop[pop["arm"].isin(MODEL_ARMS)].copy()
     if smoke:
         rng = np.random.default_rng(0)
@@ -632,16 +643,17 @@ def main() -> int:
     pop, funnel = build_population()
     write_monitoring(pop, funnel)
     n = funnel["phish_conditioned"]
+    trusted_pop, outcome_gate = trusted_positive_population(pop, TRIGGER)
     print(f"[+] dataset {DATASET} ({len(pop)} rows); monitoring assets regenerated "
           f"(phish {n}/{TRIGGER} toward trigger, benign[ct] {funnel['benign_conditioned']}, "
           f"comparator[tinnhiem] {funnel[f'{COMPARATOR_ARM}_conditioned']}, not pooled)")
     if args.smoke:
         fit_main(pop, SMOKE_DIR, smoke=True)
-    elif n >= TRIGGER:
-        fit_main(pop, SECTIONS, smoke=False)
+    elif n >= TRIGGER and outcome_gate.unlocked:
+        fit_main(trusted_pop, SECTIONS, smoke=False)
     else:
-        print(f"[i] below the pre-registered trigger (n={n} < {TRIGGER}) — refusing to fit. "
-              f"The protocol, not the operator, decides when results exist.")
+        print(f"[i] P4 outcome locked — candidates {n}/{TRIGGER}; {outcome_gate.reason}. "
+              f"No real-outcome model is fitted. Expected labels: {OUTCOME_LABELS}")
     return 0
 
 

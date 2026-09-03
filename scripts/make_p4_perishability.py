@@ -2,7 +2,7 @@
 """
 make_p4_perishability.py — the capture audit of §3, drawn rather than recited.
 
-DESCRIPTIVE ONLY, NOT THE CASCADE'S PERISHABILITY FACTOR. pi(tau) is the pre-registered estimand
+DESCRIPTIVE ONLY, NOT THE CASCADE'S PERISHABILITY FACTOR. pi(tau) is the time-stamped pre-specified estimand
 of §5.5 — Kaplan-Meier on the live stratum, computed at analysis time and not before. What is
 plotted here is observed resolvability at observed capture lag, one arm's marginal, revealing no
 outcome. Nothing is fitted; no arm is compared with another.

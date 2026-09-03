@@ -4,7 +4,7 @@ psl.py — Public-Suffix-List domain folding, shared by the collectors and the e
 
 registered_domain(host) folds a full hostname to the unit somebody actually registered. It lives
 here rather than inside a collector because two very different callers must agree on that unit:
-the infrastructure collector groups its observations by it, and the strict-temporal evaluation
+the infrastructure collector groups its observations by it, and the phishing-temporal evaluation
 drops same-registrable-domain re-detections from the test side. If the two ever disagreed, the
 evaluation would leak re-detections the collector had already counted as one site.
 

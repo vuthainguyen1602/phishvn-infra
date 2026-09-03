@@ -38,6 +38,30 @@ rows=(
   "ct_benign_vn|ct_benign_vn/watch.log|ct_benign_vn/detections.csv|1"
 )
 
+# Collectors that are not part of the infrastructure corpus are listed BESIDE this file, not in
+# it. This script ships in the public infrastructure deposit, and every row above is a collector
+# that deposit's own collection protocol describes; a row naming one it does not describe sends a
+# cloner after a log and a CSV that nothing in the mirror produces or explains. The side file is
+# not exported, so the host can carry more rows than the deposit does.
+extra_rows="$HOME/PhishVN/scripts/ops/jetson_health.rows.local"
+if [ -f "$extra_rows" ]; then
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue ;; esac
+    rows+=("$line")
+  done < "$extra_rows"
+fi
+
+# One table, two machines: the collectors are split across two hosts, and neither runs them all;
+# printing eight NO LOG rows on either would bury the one row that matters. A collector counts as
+# belonging to this host once it has written either its log or its data file, so a genuinely broken
+# collector still shows (its log exists and is stale) while one that was never installed does not.
+present=()
+for r in "${rows[@]}"; do
+  IFS='|' read -r _n _l _d _p <<< "$r"
+  if [ -e "$_l" ] || [ -e "$_d" ]; then present+=("$r"); fi
+done
+if [ "${#present[@]}" -gt 0 ]; then rows=("${present[@]}"); fi
+
 printf "%-18s %-22s %-24s %s\n" "COLLECTOR" "RAN (log age)" "FOUND (data age)" "ROWS"
 printf "%-18s %-22s %-24s %s\n" "------------------" "----------------------" "------------------------" "------"
 for r in "${rows[@]}"; do
@@ -58,7 +82,18 @@ for r in "${rows[@]}"; do
     # the only trace was a bare "298h ago" here, which reads like ordinary staleness. Twenty-four
     # missed periods is not ordinary, so say so; whether it is a dry source (chongluadao is, by
     # design) or a breakage is still the reader's call, exactly as the header promises.
-    if [ "$dage" -gt $(( period * 24 )) ]; then found="DRY ${dage}h (every ${period}h)"
+    # A finite source that has fetched its whole list is not stale, and reading its age as
+    # staleness is how tinnhiem_benign got queried as a fault on 2026-08-30: 6,974 org domains,
+    # every one captured, nothing left to find. This is still marking rather than diagnosing --
+    # the phrase is the collector's own report, not this script's opinion of it.
+    #
+    # The phrase has to be "0 not yet captured" and not "0 left for next runs". The second is true
+    # of a live feed on any quiet tick: vn_phishing_live prints it after processing the one arrival
+    # it saw, and the first version of this check marked it DONE while it was working normally.
+    # Only the enumerating collectors say their whole population is captured.
+    if tail -40 "$log" 2>/dev/null | grep -qE '0 not yet captured'; then
+      found="DONE ${dage}h (list exhausted)"
+    elif [ "$dage" -gt $(( period * 24 )) ]; then found="DRY ${dage}h (every ${period}h)"
     else found="${dage}h ago"; fi
   else
     found="never"; n=0
@@ -97,7 +132,13 @@ echo "collector imports present on the device:"
 cd "$HOME/PhishVN"
 missing=0
 # Only what cron runs: scripts named in the ops wrappers plus their first-party imports.
-files=$(grep -hoE 'scripts/[a-z_/]+\.py' scripts/ops/*.sh | sort -u)
+# .204 has no scripts/ops -- it runs one collector, invoked from its own wrapper in
+# scripts/collect -- so glob both and let the shell drop what is not there. A bare
+# scripts/ops/*.sh printed a grep error and then reported "all present" from an empty list, which
+# is the wrong answer given confidently.
+files=$(cat scripts/ops/*.sh scripts/run_*.sh 2>/dev/null |
+        grep -hoE 'scripts/[a-z_/]+\.py' | sort -u)
+[ -z "$files" ] && echo "  (no wrapper scripts on this host — nothing to check)"
 for _ in 1 2; do
   for f in $files; do
     for m in $(grep -hoE '^(from [A-Za-z_][A-Za-z0-9_]* import|import [A-Za-z_][A-Za-z0-9_]*( |$))' "$f" | awk '{print $2}' | sort -u); do

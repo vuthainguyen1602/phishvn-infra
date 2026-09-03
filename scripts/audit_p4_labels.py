@@ -42,8 +42,6 @@ import sys
 import pandas as pd
 import tldextract
 
-from psl import apex
-
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 try:
@@ -51,6 +49,15 @@ try:
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
+
+# BELOW the bootstrap, not above it: psl.py lives in scripts/, which is only on sys.path once
+# add_script_dirs() has run. Imported above, this module could still be IMPORTED (watch_ct_benign,
+# make_p4_assets and four others bootstrap before importing it, so their path is already set) but
+# could not be RUN -- and running it is how the gate is audited and how p4_content_map.csv is
+# exported on the collector. It was that way from 2026-08-28 (435e6f9) to 2026-08-31, three days
+# in which every importer worked and `python3 scripts/audit_p4_labels.py` raised
+# ModuleNotFoundError on both machines.
+from psl import apex  # noqa: E402
 
 P4_DATASET = os.path.join("data", "processed", "p4", "p4_infra_dataset.csv")
 DETECTIONS = os.path.join("data", "raw", "urlscan_brands", "detections.csv")
@@ -130,7 +137,7 @@ def _load_caches() -> None:
 
     DETERMINISM (2026-08-21). The registry probe and the no-address fallback both ask live DNS, and
     two builds minutes apart disagreed (wildcard 1,471 vs 1,472) because one suffix answered
-    differently. A pre-registered design cannot have a population that depends on the minute it was
+    differently. A time-stamped pre-specified design cannot have a population that depends on the minute it was
     built. So the answers are records: read from disk, probed only for names the file has never
     seen, refreshed as a whole only on --reprobe. The file IS the probe; the network is its source."""
     global _CACHES_LOADED

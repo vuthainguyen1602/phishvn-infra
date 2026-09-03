@@ -25,7 +25,7 @@ Writes papers/P4b_infra_data/sections/{tab_files,tab_sources,gen_counts,gen_macr
        and papers/P4b_infra_data/figures/{cert_age_by_arm,funnel_accrual_p4b}.pdf. The accrual
        panel is this article's own: observed admissions per detection day and their running total,
        with no trigger line, projection or calendar bound — those belong to the companion study's
-       pre-registration, not to a description of a table.
+       pre-specification, not to a description of a table.
 """
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ import csv
 import datetime as dt
 import io
 import os
+import re
 import sys
 
 import pandas as pd
@@ -184,7 +185,53 @@ def write_sources_table(df: pd.DataFrame, pop: pd.DataFrame) -> None:
                   f"{fmt(len(sub))} & {fmt(sub['domain'].nunique())} & {fmt(n_pop)} \\\\\n")
     out.write("\\midrule\nAll sources & & & "
               f"{fmt(len(df))} & {fmt(df['domain'].nunique())} & {fmt(len(pop))} \\\\\n"
-              "\\bottomrule\n\\end{tabular}\n\\end{table}\n")
+              "\\bottomrule\n\\end{tabular}\n")
+    # A near-empty row in a data descriptor invites exactly one question, so answer it in place.
+    # The number is computed, not typed: whichever source is dry, and for how long, is read off the
+    # data rather than asserted, so this note cannot go stale the way a hand-written date would.
+    if len(df):
+        last = (df.groupby("source")["captured_at"].max()
+                  .sort_values())
+        dry_src = last.index[0]
+        dry_rows = int((df["source"] == dry_src).sum())
+        if dry_rows < 0.001 * len(df):
+            since = str(last.iloc[0])[:10]
+            days = (pd.to_datetime(df["captured_at"].max()) - pd.to_datetime(last.iloc[0])).days
+            # The last run's own summary line, not a remembered diagnosis. "HTTP 502" and
+            # "fourteen unreachable" were hard-coded here and both went stale: crt.sh now answers
+            # 404 from one host and 502 from another, and the failing-token count moved to 21 of
+            # 34 while 13 tokens answered and genuinely found nothing. A note that asserts a
+            # failure mode it is not reading is the hand-written date this comment warns about.
+            queried = failed = new_cands = None
+            log_path = os.path.join("data", "raw", dry_src, "watch.log")
+            if os.path.exists(log_path):
+                for line in open(log_path, encoding="utf-8", errors="replace"):
+                    m = re.search(r"(\d+)/(\d+) tokens queried.*?-> (\d+) new candidate domains"
+                                  r"(?:.*?\| (\d+) FAILED)?", line)
+                    if m:
+                        queried, new_cands = int(m.group(2)), int(m.group(3))
+                        failed = int(m.group(4)) if m.group(4) else 0
+            if queried:
+                answered = queried - (failed or 0)
+                upstream = (f"{failed} of its {queried} brand tokens came back unreachable after "
+                            f"retries, and the {answered} that did answer yielded "
+                            f"\\texttt{{{new_cands} new candidate domains}}"
+                            if failed else
+                            f"all {queried} tokens answered and yielded "
+                            f"\\texttt{{{new_cands} new candidate domains}}")
+            else:
+                upstream = ("its run log records no summary line, so the split between an "
+                            "unreachable upstream and an empty answer cannot be stated here")
+            out.write(
+                "\n\\noindent\\footnotesize\n"
+                f"\\textit{{Note.}} \\nolinkurl{{{dry_src}}} holds {fmt(dry_rows)} rows because it has "
+                f"produced nothing since {since}, {days} days before this snapshot. The collector runs on "
+                "schedule and exits cleanly; its upstream, the certificate-transparency search at "
+                "\\nolinkurl{crt.sh}, has been degraded rather than absent. On the most recent run "
+                f"{upstream}. The row is reported at its true value rather than dropped: a source that ran "
+                "and found nothing is a different fact from one that was never run, and a data descriptor "
+                "that silently omits the first is describing a corpus it does not have.\\normalsize\n")
+    out.write("\\end{table}\n")
     write_generated(os.path.join(SEC, "tab_sources.tex"), out.getvalue())
 
 
@@ -394,7 +441,7 @@ def write_timestamps_table(df: pd.DataFrame) -> None:
 
 def write_availability(pop: pd.DataFrame) -> None:
     """Same logic as make_p4_assets.write_monitoring's availability table, captioned for a data
-    user rather than for a pre-registration."""
+    user rather than for a pre-specification."""
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize\n"
               "\\caption{Share of conditioned registrable domains, per arm, with each derived "
@@ -567,7 +614,9 @@ def write_funnel_accrual_figure() -> None:
         prev = running
     ax2.bar(days, daily, width=0.8, color=BLUE, alpha=0.55, zorder=3)
     ax2.set_ylabel("admitted per detection day")
-    ax2.set_xlabel("detection date")
+    # The year moves here when the ticks lose it to the short day-month format, so the panel
+    # still says which year it covers without a reader going to the prose.
+    ax2.set_xlabel(f"detection date ({acc[0][0].year})")
     ax3 = ax2.twinx()
     ax3.plot(days, series, "-", color=INK, lw=1.4, zorder=4)
     ax3.set_ylabel("running total")
@@ -581,6 +630,12 @@ def write_funnel_accrual_figure() -> None:
                  xytext=(-2, 6), fontsize=7, color=INK, ha="right")
     ax2.set_title("observed accrual", fontsize=8.5)
     ax2.grid(axis="y", alpha=0.6)
+    # Matplotlib's automatic date ticks put ten full ISO dates on a 3.2in panel and, rotated,
+    # they overprinted each other end to end (2026-09-02). Weekly ticks in day-month form: six
+    # short labels instead of ten long ones, and the axis title still says what the unit is.
+    import matplotlib.dates as mdates
+    ax2.xaxis.set_major_locator(mdates.DayLocator(interval=7))
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
     for lab in ax2.get_xticklabels():
         lab.set_rotation(30)
         lab.set_ha("right")

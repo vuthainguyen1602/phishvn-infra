@@ -2,7 +2,7 @@
 """
 make_p4_funnel.py — the population funnel and the accrual toward the trigger, drawn.
 
-WHY THESE TWO TOGETHER. Both answer the question a pre-registered design invites and a table
+WHY THESE TWO TOGETHER. Both answer the question a time-stamped pre-specified design invites and a table
 answers badly: is this study going to have a population, and where did the candidates go?
 `tab_audit` prints the counts but cannot show that the cuts are wildly unequal, and that the
 biggest by far is not a design choice but the registry-wildcard artefact of
@@ -13,7 +13,7 @@ and the fraction of the trigger, and a reader's next question is when the trigge
 answer with a registered deadline attached (the 2027-01-31 calendar bound), so projection and
 bound belong on the same axis.
 
-PRE-REGISTRATION SAFETY. Both panels are single-arm marginals of the phishing candidate pool at
+pre-specification SAFETY. Both panels are single-arm marginals of the phishing candidate pool at
 capture time: no outcome read, no model fitted, no arm compared, and the projection extrapolates
 admission counts — how fast the population grows — not anything it will later measure. Same class
 of object as the funnel table and progress sentence the protocol already ships.
@@ -48,7 +48,7 @@ except ImportError:  # flat public-mirror layout
 from genfile import write_generated
 # The funnel, the trigger and the population rule are imported rather than restated: this figure
 # must be the same object the table is, or it becomes a second source of truth for a number the
-# pre-registration turns on.
+# pre-specification turns on.
 from make_p4_assets import TRIGGER, build_population
 
 SEC = os.path.join(ROOT, "papers", "P4_infra", "sections")
@@ -149,9 +149,13 @@ def make_figure(fun: list[dict], acc: list[dict], proj: dict) -> str:
     ys = [r["cumulative"] for r in acc]
     ax2.plot(xs, ys, "-", color=BLUE, lw=1.6, zorder=3)
     ax2.axhline(TRIGGER, color=INK, lw=0.9, ls=(0, (4, 3)), zorder=2)
-    ax2.annotate(f"trigger $n \\geq {TRIGGER}$", (CALENDAR_BOUND, TRIGGER),
-                 textcoords="offset points", xytext=(-6, 6), fontsize=7.5, color=INK,
-                 ha="right")
+    # Anchored at the LEFT edge, not against the calendar bound: the whole-window projection's
+    # label ends its second line at the same height, and the two ran together as "15 Oct trigger
+    # n >= 500" (2026-09-02). Above the dashed line on the left the curve is still near zero, so
+    # the space is free whatever the projections do.
+    ax2.annotate(f"trigger $n \\geq {TRIGGER}$", (xs[0], TRIGGER),
+                 textcoords="offset points", xytext=(2, 5), fontsize=7.5, color=INK,
+                 ha="left")
     ax2.axvline(CALENDAR_BOUND, color=GRAY, lw=0.9, ls=(0, (2, 3)), zorder=2)
     ax2.annotate("calendar bound\n(analyse anyway)", (CALENDAR_BOUND, TRIGGER * 0.42),
                  textcoords="offset points", xytext=(-4, 0), fontsize=7, color=INK, ha="right")

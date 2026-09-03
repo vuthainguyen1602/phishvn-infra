@@ -79,7 +79,7 @@ FIELDS = [
     "tls_not_before", "tls_not_after", "tls_san_count",
 ]
 
-# registered_domain() moved to scripts/psl.py on 2026-08-18: the strict-temporal evaluation
+# registered_domain() moved to scripts/psl.py on 2026-08-18: the phishing-temporal evaluation
 # drops same-registrable-domain re-detections and must fold hosts exactly as this collector does,
 # so the two share one implementation rather than two copies that can drift apart. The unit and
 # its 2026-08-03 change of convention are documented there.

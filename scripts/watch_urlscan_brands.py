@@ -70,23 +70,57 @@ TOKENS_JSON = os.path.join("data", "processed", "brand_tokens.json")
 # coverage): only Vietnamese-specific strings a foreign hostname has no innocent reason to carry.
 # `shopee`/`momo` excluded: 4,679 and 1,305 scans in 30 days, nearly all legitimate.
 DEFAULT_TOKENS = [
-    # banks — dropped after a 7-day trial: `tpbank` = OTP Bank (HU), `abbank` = Charles Schwab,
-    # `eximbank`/`seabank` = PH/ID banks, `ghtk` (4 chars) = "shinebri-ghtk-its" etc.
+    # banks & consumer finance
     "vietcombank", "techcombank", "vietinbank", "agribank", "bidv", "sacombank", "vpbank",
-    "hdbank", "lienvietpostbank", "namabank", "vietabank", "pvcombank", "shinhanbank",
-    # telecom / carriers
+    "hdbank", "lienvietpostbank", "lpbank", "namabank", "vietabank", "pvcombank", "shinhanbank",
+    "mbbank", "baovietbank", "bacabank", "kienlongbank", "saigonbank", "dongabank", "coopbank",
+    "seabank", "msbbank", "ocbbank", "vibbank", "shbbank", "abbank", "ncbbank", "bvbank",
+    "vietbank", "scbbank", "eximbank", "pgbank", "timobank", "cakebyvpbank", "mcredit",
+    "fecredit", "homecredit", "vcbdigibank", "smartbanking",
+    # biometric & banking auth (Quyết định 2345)
+    "sinhtrachoc", "xacthuckhuonmat", "capnhatsinhtrachoc", "nfccancuoc",
+    # e-wallets, payment & fintech
+    "zalopay", "vnpay", "viettelmoney", "viettelpay", "shopeepay", "napas247",
+    # utilities: electricity & water bills (EVN)
+    "dienluc", "cskhevn", "dienluctphcm", "dienluchanoi", "evnspc", "evncpc", "evnnpc", "hoadondien",
+    # telecom / carriers & SIM registration / 5G
     "viettel", "vinaphone", "mobifone", "vnpt", "fptshop", "fpttelecom",
-    # public services and identity
-    "vneid", "dichvucong", "baohiemxahoi", "thuedientu", "tongcucthue",
-    # logistics
-    "viettelpost", "vnpost", "giaohangtietkiem",
-    # Added 2026-07-26 after corpus scoring + a live 7-day trial (only the trial sees global noise):
-    # mbbank, vssid, vietlott, pharmacity, vnpay, chinhphu; gplx returned 0 hits but no noise, kept
-    # as a cheap probe for driving-licence scams.
-    "mbbank", "vietlott", "pharmacity", "vnpay", "vssid", "gplx", "chinhphu",
-    # REJECTED by the same trial -- corpus prevalence does not mean the string is safe to search:
-    # lazada (54 hits: real regional Lazada), tiki (41), lotte (31: prefix of "lottery"), sendo (30),
-    # and ocb/msb, 3-char tokens unusable for substring search (ocbcsekuritas.org.ph, msbureau.com).
+    "chuanhoathuebao", "khoathuebao", "nangcapsim", "sim5g", "thuebaovn",
+    # public administration, police, courts, warrants & civil identity (phường, xã, công an, căn cước)
+    "vneid", "dichvucong", "dichvucongquocgia", "dancuquocgia", "dinhdanhdientu",
+    "cancuoccongdan", "cancuoc", "bocongan", "conganxaphuong", "conganhanoi", "congantphcm",
+    "canhsatgiaothong", "chinhphu", "cucanchinangmang", "vienkiemsat", "lenhbat", "toaanhanoi", "toaanhcm",
+    # taxes, invoices & business filings
+    "thuedientu", "tongcucthue", "etaxmobile", "hoadondientu", "tracuuthue", "cucthue", "hoanthuetncn",
+    # social insurance, welfare & healthcare
+    "baohiemxahoi", "vssid", "baohiemyte", "baoviet", "baohiembaoviet", "sosuckhoedientu",
+    "trocapxahoi", "luonghuu", "baohiemthatnghiep", "ansinhxahoi",
+    # education, admissions, student tuition & universities (nhập học, tân sinh viên, học phí)
+    "nhaphoc", "tuyensinh", "xettuyen", "diemthi", "hocphi", "sinhvien", "hocbong",
+    "daihocbachkhoa", "kinhtequocdan", "ngoaithuong", "fptedu",
+    # UTC, UTC2 (Trường Đại học Giao thông vận tải) & major universities
+    "giaothongvantai", "dhgtvt", "utc2", "utcedu", "hocviennganhang", "hocvientaichinh",
+    "daihockinhte", "daihocyduoc",
+    # online jobs, tasks, recruiting & modeling scams
+    "vieclamonline", "vieclamtainha", "congtacvien", "chotdon", "kiemtienonline", "maunhi",
+    # quick online loans & credit checks
+    "vaynhanh", "vaytienonline", "vaytinchap", "xoanoxau", "tracuucic", "hdsaison",
+    # airlines, travel combos & resort vouchers
+    "vietnamairlines", "vietjetair", "bambooairways", "vemaybaygiare", "sanvemaybay", "combodulich", "vinpearl", "sunworld",
+    # stocks, trading & investment funds
+    "dautuchungkhoan", "vpschungkhoan", "ssichungkhoan", "dragoncapital", "vinacapital",
+    # traffic violations & licenses (phạt nguội)
+    "phatnguoi", "gplx", "tracuugplx",
+    # retail promotions, giveaways & lucky wheels
+    "dienmayxanh", "thegioididong", "vongquaymayman", "tangquatrien", "nhanquamienphi", "trungthuong",
+    # labor export, study abroad & migration scams (XKLĐ, du học, visa)
+    "xuatkhaulaodong", "xkld", "duhoc", "dinhcu",
+    # concert tickets, event booking & ticketbox scams
+    "veconcert", "ticketbox",
+    # summer camp & spiritual / retreat scams (trại hè, khóa tu)
+    "traihecongan", "khoatumuahe",
+    # logistics & retail services
+    "viettelpost", "vnpost", "giaohangtietkiem", "vietlott", "pharmacity",
 ]
 
 # A SECOND LENS, on page content: the token list is blind to e.g. `56bfrd3jrn.pages.dev` rendering
@@ -96,9 +130,57 @@ DEFAULT_TOKENS = [
 CONTENT_QUERIES = [
     ('page.title:"Ngân hàng"', "title:bank"),
     ('page.title:"Dịch vụ công"', "title:public-service"),
+    ('page.title:"Sinh trắc học"', "title:sinhtrachoc"),
+    ('page.title:"Điện lực"', "title:dienluc"),
+    ('page.title:"Hóa đơn tiền điện"', "title:evn-bill"),
+    ('page.title:"Chuẩn hóa thông tin"', "title:sim-chuanhoa"),
+    ('page.title:"Khóa thuê bao"', "title:sim-khoa"),
+    ('page.title:"Nhập học"', "title:nhaphoc"),
+    ('page.title:"Tuyển sinh"', "title:tuyensinh"),
+    ('page.title:"Học phí"', "title:hocphi"),
+    ('page.title:"Việc làm online"', "title:vieclam"),
+    ('page.title:"Cộng tác viên"', "title:congtacvien"),
+    ('page.title:"Vay tiền nhanh"', "title:vaytien"),
+    ('page.title:"Vé máy bay"', "title:vemaybay"),
+    ('page.title:"Đầu tư chứng khoán"', "title:chungkhoan"),
+    ('page.title:"Bảo hiểm xã hội"', "title:bhxh"),
+    ('page.title:"Tra cứu thuế"', "title:tax-lookup"),
+    ('page.title:"Phạt nguội"', "title:phatnguoi"),
+    ('page.title:"Căn cước công dân"', "title:cccd"),
+    ('page.title:"Định danh điện tử"', "title:vneid-portal"),
+    ('page.title:"Đại học Giao thông vận tải"', "title:utc"),
+    ('page.title:"Trường ĐH Giao thông vận tải"', "title:utc"),
+    ('page.title:"UTC2"', "title:utc2"),
+    ('page.title:"Phân hiệu Giao thông vận tải"', "title:utc2"),
+    ('page.title:"Viện kiểm sát"', "title:vienkiemsat"),
+    ('page.title:"Trúng thưởng"', "title:trungthuong"),
+    ('page.title:"Tri ân khách hàng"', "title:trian"),
+    ('page.title:"Xuất khẩu lao động"', "title:xkld"),
+    ('page.title:"Vé concert"', "title:concert"),
+    ('page.title:"Khóa tu mùa hè"', "title:khoatu"),
+    ('page.title:"Trại hè"', "title:traihe"),
     ("task.url:*xacminh*", "url:xacminh"),      # "xác minh" — verify (identity/account)
     ("task.url:*nhanqua*", "url:nhanqua"),      # "nhận quà" — claim a gift
     ("task.url:*dangnhap*", "url:dangnhap"),    # "đăng nhập" — log in, as a PATH not a title
+    ("task.url:*sinhtrachoc*", "url:sinhtrachoc"),
+    ("task.url:*dienluc*", "url:dienluc"),
+    ("task.url:*hoadondien*", "url:hoadondien"),
+    ("task.url:*chuanhoathuebao*", "url:chuanhoathuebao"),
+    ("task.url:*nhaphoc*", "url:nhaphoc"),      # "nhập học" — student enrollment lure
+    ("task.url:*tuyensinh*", "url:tuyensinh"),  # "tuyển sinh" — admissions lure
+    ("task.url:*phatnguoi*", "url:phatnguoi"),  # "phạt nguội" — traffic fine lure
+    ("task.url:*hocphi*", "url:hocphi"),        # "học phí" — tuition lure
+    ("task.url:*tracuuthue*", "url:tracuuthue"),# "tra cứu thuế" — tax lookup lure
+    ("task.url:*giaothongvantai*", "url:giaothongvantai"),
+    ("task.url:*utc2*", "url:utc2"),
+    ("task.url:*dhgtvt*", "url:dhgtvt"),
+    ("task.url:*vaytien*", "url:vaytien"),
+    ("task.url:*vemaybay*", "url:vemaybay"),
+    ("task.url:*trungthuong*", "url:trungthuong"),
+    ("task.url:*trian*", "url:trian"),
+    ("task.url:*xkld*", "url:xkld"),
+    ("task.url:*duhoc*", "url:duhoc"),
+    ("task.url:*veconcert*", "url:veconcert"),
 ]
 
 FIELDS = ["domain", "first_detected", "brand", "scan_uuid", "task_url", "scan_time", "status",
@@ -113,7 +195,7 @@ def load_official() -> set[str]:
     # Real domains the filter kept reporting: techcombank.com / viettel.com.vn (first run); vnpay.vn /
     # chinhphu.vn (`chinhphu` alone returned 40 legitimate government subdomains, since chinhphu.vn
     # escapes the .gov.vn suffix rule).
-    official = {"techcombank.com", "viettel.com.vn", "vnpay.vn", "chinhphu.vn",
+    official = {"techcombank.com", "viettel.com.vn", "vnpay.vn", "chinhphu.vn", "zalopay.vn",
                 # from the content lens: the Government newspaper and a real digital bank
                 "baochinhphu.vn", "vikkibank.vn",
                 "vietcombank.com.vn", "techcombank.com.vn", "vietinbank.vn", "agribank.com.vn",
@@ -121,7 +203,36 @@ def load_official() -> set[str]:
                 "viettel.vn", "vinaphone.com.vn", "mobifone.vn", "vnpt.com.vn", "vnpt.vn",
                 "vneid.gov.vn", "vnpost.vn", "viettelpost.com.vn", "viettelmoney.vn",
                 "vietteltelecom.vn", "hdbank.com.vn", "namabank.com.vn", "pvcombank.com.vn",
-                "shinhan.com.vn", "giaohangtietkiem.vn", "fptshop.com.vn", "fpt.vn"}
+                "shinhan.com.vn", "giaohangtietkiem.vn", "fptshop.com.vn", "fpt.vn",
+                "baovietbank.com.vn", "baoviet.com.vn", "bacabank.com.vn", "kienlongbank.com",
+                "saigonbank.com.vn", "dongabank.com.vn", "co-opbank.vn", "fecredit.com.vn",
+                "homecredit.vn", "shopeepay.vn", "bocongan.gov.vn", "dichvucong.gov.vn",
+                "dancuquocgia.gov.vn", "csgt.vn", "gdt.gov.vn", "baohiemxahoi.gov.vn",
+                "hust.edu.vn", "neu.edu.vn", "ftu.edu.vn", "fpt.edu.vn", "vnu.edu.vn",
+                "utc.edu.vn", "utc2.edu.vn", "ba.edu.vn", "hvtc.edu.vn", "ueh.edu.vn", "ump.edu.vn",
+                "evn.com.vn", "evn.vn", "vietnamairlines.com", "vietjetair.com", "bambooairways.com",
+                "vinpearl.com", "sunworld.vn", "hdsaison.com.vn", "ssi.com.vn", "vndirect.com.vn",
+                "vps.com.vn", "tcbs.com.vn", "dragoncapital.com", "dienmayxanh.com", "thegioididong.com",
+                "topzone.vn", "vksndtc.gov.vn", "toaan.gov.vn",
+                # verified insurance, joint-venture banks & policy banks
+                "baolonginsurance.com.vn", "baohiembaolong.vn", "baolong.vn",
+                "vbsp.vn", "vbsp.org.vn", "vrbank.com.vn", "vrb.com.vn",
+                "sacombank-sbr.vn", "ub.com.vn", "ub.edu.vn",
+                # official commercial banks & digital banks
+                "lpbank.com.vn", "seabank.com.vn", "ocb.com.vn", "msb.com.vn",
+                "vib.com.vn", "shb.com.vn", "abbank.vn", "ncb-bank.vn",
+                "bvbank.net.vn", "bvb.com.vn", "vietbank.com.vn", "scb.com.vn",
+                "eximbank.com.vn", "pgbank.com.vn", "timo.vn", "cake.vn",
+                # consumer finance, ticketing & FPT services
+                "mcredit.com.vn", "lottefinance.vn", "miraeasset.com.vn", "shinhanfinance.com.vn",
+                "ticketbox.vn", "fpt.ai", "fpttelecom.net", "fpt.com.vn",
+                # foreign official homonyms (prevent false positive collection)
+                "agribank.com.ph", "agribank.org.uk",
+                # official telecom subsidiaries, provincial units & e-invoice portals
+                "vnptit.vn", "vnpt-tsc.vn", "vnptdongnai.vn", "vnpthaiphong.vn",
+                "vnpthungyen.com.vn", "vnptthanhhoa.vn", "vnpt-einvoice.com.vn", "vnptigate.vn",
+                "viettelmydata.vn", "viettel-vinvoice.vn", "viettel-cloud.com.vn", "viettel-invoice.vn",
+                "mobifonemoney.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
