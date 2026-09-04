@@ -38,9 +38,9 @@ VN_TOKENS = re.compile(
     # extension never supplied. Global lenders with a VN branch (Home Credit, Mirae Asset) stay out
     # by the same rule the registry guard uses: they attract worldwide, not VN-targeting, phishing.
     r"napas|momo|zalopay|vnpay|viettelpay|nganhang|taikhoan|thanhtoan|"
-    r"chuyentien|nhantien|naptien|ruttien|vaytien|tietkiem|tindung|chinhphu|congan|\bthue\b|"
+    r"chuyentien|nhantien|naptien|ruttien|vaytien|hoantien|tietkiem|tindung|chinhphu|congan|\bthue\b|"
     r"thuedientu|\bgdt\b|"  # e-tax portal thuedientu.gdt.gov.vn — top impersonation target; \bthue\b alone misses the fused form
-    r"baohiem|bhxh|bhyt|dichvucong|vneid|cccd|canhcuoc|shopee|lazada|sendo|tiktokshop|muahang|"
+    r"baohiem|bhxh|bhyt|dichvucong|vneid|cccd|canhcuoc|shopee|lazada|sendo|tiktokshop|tikivn|tikivip|tikictv|muahang|"
     r"khuyenmai|trungthuong|nhanqua|tichdiem|giaohang|vanchuyen|buukien|donhang|ghtk|\bghn\b|"
     r"vietnampost|viettel|vinaphone|mobifone|\bvnpt\b|napthe|muathe|thecao|khachhang|dangnhap|"
     r"dangky|xacminh|xacnhan|capnhat|kichhoat|baomat|the-visa|thevisa|luadao|vietnam|\bvn-|-vn\b)",
@@ -152,6 +152,57 @@ def _match_fused(domain: str) -> bool:
     return False
 
 
+# Sovereign foreign country ccTLDs that do not host legitimate Vietnamese-targeting phishing.
+# Excluded to screen out foreign language phishing (e.g. .in, .lk, .id, .br, .ru, .cn) and wildcard parking (.ph).
+FOREIGN_CCTLDS = (
+    ".in", ".co.in", ".net.in", ".org.in",
+    ".lk",
+    ".ph", ".com.ph", ".net.ph", ".org.ph", ".mil.ph", ".ngo.ph",
+    ".id", ".co.id", ".my.id", ".web.id",
+    ".my", ".com.my",
+    ".th", ".co.th",
+    ".br", ".com.br", ".net.br",
+    ".ru",
+    ".cn", ".com.cn",
+    ".pk", ".bd", ".np", ".ir", ".ua", ".by",
+    ".jp", ".co.jp", ".kr", ".co.kr",
+    ".sg", ".com.sg", ".tw", ".com.tw", ".hk", ".com.hk",
+    ".au", ".com.au", ".nz", ".co.nz",
+    ".tz", ".co.tz",
+    ".cz", ".co.cz",
+    ".kz",
+    ".rs", ".co.rs",
+    ".tr", ".com.tr",
+    ".il", ".co.il",
+    ".sn", ".lt",
+    ".ca", ".uk", ".co.uk", ".de", ".fr", ".es", ".it", ".pl", ".nl",
+    ".at", ".mx", ".gr", ".ec", ".ro", ".hu", ".se", ".no", ".fi", ".dk", ".pt", ".cl", ".ar", ".pe", ".co",
+)
+
+# Foreign scam lure words (Indonesian, Malay, Portuguese, Spanish) commonly seen in
+# multinational brand phishing (Shopee, Lazada). If present without explicit Vietnamese
+# context tokens, the domain is foreign phishing and excluded.
+FOREIGN_KEYWORDS = re.compile(
+    r"(hadiah|undian|layanan|baucar|pengembalian|mitra|pulsa|bansos|bantuan|"
+    r"gerar|afiliado|rapido|venda|entregador|sorteio|recarga|"
+    r"ganhar|comecar|operacao|assistente|loja|vendedor)", re.I)
+
+VN_CONTEXT_TOKENS = re.compile(
+    r"(viet|dichvu|nganhang|chinhphu|congan|thue|trian|nhanqua|tangqua|khuyenmai|"
+    r"donhang|vanchuyen|giaohang|xacminh|dangnhap|\bvn-|-vn\b)", re.I)
+
+# Cong An followed by H must be a province starting with H (Hanoi, Haiphong, Hatinh, Haiduong, Hanam, Haugiang, Hoabinh, Hungyen).
+# Otherwise "conganh" / "boconganh" is "Bồ Công Anh" (dandelion) or personal name "Công Anh".
+NON_POLICE_CONGANH = re.compile(
+    r"conganh(?!(?:anoi|aiphong|atinh|aiduong|anam|augiang|oabinh|ungyen))", re.I)
+
+# Dich vu cong followed by nghiep (industrial), nghe (technology), chung (notary), ty (company).
+# These are legitimate Vietnamese compound businesses, not public service ("Dịch vụ công") phishing.
+NON_PUBLIC_SERVICE_DVC = re.compile(
+    r"dichvucong(?:nghiep|nghe|chung|ty)", re.I)
+
+
+
 def is_vn_target(domain: str) -> bool:
     """The raw host is tested first, so hyphen-dependent patterns (-vn\b, \bvn-) keep matching and
     the fused spelling is a pure addition on top, never a replacement."""
@@ -159,8 +210,16 @@ def is_vn_target(domain: str) -> bool:
     # used to raise AttributeError inside .lower(), crashing whatever loop was scanning a CSV.
     if not isinstance(domain, str):
         return False
-    d = domain.lower()
-    return d.endswith(".vn") or _match_tokens(d) or _match_fused(d)
+    d = domain.lower().strip()
+    if d.endswith(".vn"):
+        return True
+    # Foreign national ccTLDs never host legitimate Vietnamese phishing
+    if any(d.endswith(sfx) for sfx in FOREIGN_CCTLDS):
+        return False
+    # Foreign lure words without explicit Vietnamese context
+    if FOREIGN_KEYWORDS.search(d) and not VN_CONTEXT_TOKENS.search(d):
+        return False
+    return _match_tokens(d) or _match_fused(d)
 
 
 def visible_text(html: str) -> str:

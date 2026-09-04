@@ -50,6 +50,8 @@ try:
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 from watch_chongluadao import clean_title, fetch_external_js
+from vn_filter import (FOREIGN_CCTLDS, FOREIGN_KEYWORDS, VN_CONTEXT_TOKENS,
+                       NON_POLICE_CONGANH, NON_PUBLIC_SERVICE_DVC)
 
 H = {"User-Agent": "Mozilla/5.0 (research; contact thaivn_ph@utc.edu.vn)"}
 SEARCH = "https://urlscan.io/api/v1/search/"
@@ -82,7 +84,7 @@ DEFAULT_TOKENS = [
     # e-wallets, payment & fintech
     "zalopay", "vnpay", "viettelmoney", "viettelpay", "shopeepay", "napas247",
     # utilities: electricity & water bills (EVN)
-    "dienluc", "cskhevn", "dienluctphcm", "dienluchanoi", "evnspc", "evncpc", "evnnpc", "hoadondien",
+    "cskhevn", "dienluctphcm", "dienluchanoi",
     # telecom / carriers & SIM registration / 5G
     "viettel", "vinaphone", "mobifone", "vnpt", "fptshop", "fpttelecom",
     "chuanhoathuebao", "khoathuebao", "nangcapsim", "sim5g", "thuebaovn",
@@ -95,8 +97,7 @@ DEFAULT_TOKENS = [
     # social insurance, welfare & healthcare
     "baohiemxahoi", "vssid", "baohiemyte", "baoviet", "baohiembaoviet", "sosuckhoedientu",
     "trocapxahoi", "luonghuu", "baohiemthatnghiep", "ansinhxahoi",
-    # education, admissions, student tuition & universities (nhập học, tân sinh viên, học phí)
-    "nhaphoc", "tuyensinh", "xettuyen", "diemthi", "hocphi", "sinhvien", "hocbong",
+    # universities & major institutions
     "daihocbachkhoa", "kinhtequocdan", "ngoaithuong", "fptedu",
     # UTC, UTC2 (Trường Đại học Giao thông vận tải) & major universities
     "giaothongvantai", "dhgtvt", "utc2", "utcedu", "hocviennganhang", "hocvientaichinh",
@@ -105,22 +106,28 @@ DEFAULT_TOKENS = [
     "vieclamonline", "vieclamtainha", "congtacvien", "chotdon", "kiemtienonline", "maunhi",
     # quick online loans & credit checks
     "vaynhanh", "vaytienonline", "vaytinchap", "xoanoxau", "tracuucic", "hdsaison",
-    # airlines, travel combos & resort vouchers
-    "vietnamairlines", "vietjetair", "bambooairways", "vemaybaygiare", "sanvemaybay", "combodulich", "vinpearl", "sunworld",
+    # airlines, resort & entertainment vouchers
+    "vietnamairlines", "vietjetair", "bambooairways", "vinpearl", "sunworld",
     # stocks, trading & investment funds
     "dautuchungkhoan", "vpschungkhoan", "ssichungkhoan", "dragoncapital", "vinacapital",
-    # traffic violations & licenses (phạt nguội)
-    "phatnguoi", "gplx", "tracuugplx",
+    # traffic violations & licenses (GPLX)
+    "gplx", "tracuugplx",
     # retail promotions, giveaways & lucky wheels
     "dienmayxanh", "thegioididong", "vongquaymayman", "tangquatrien", "nhanquamienphi", "trungthuong",
-    # labor export, study abroad & migration scams (XKLĐ, du học, visa)
-    "xuatkhaulaodong", "xkld", "duhoc", "dinhcu",
     # concert tickets, event booking & ticketbox scams
     "veconcert", "ticketbox",
     # summer camp & spiritual / retreat scams (trại hè, khóa tu)
     "traihecongan", "khoatumuahe",
     # logistics & retail services
     "viettelpost", "vnpost", "giaohangtietkiem", "vietlott", "pharmacity",
+    # e-commerce & retail impersonation (grounded on RMIT VN E-Commerce Phishing dataset 2022-2024)
+    "ctvshopee", "vnshopee", "shopeevn", "shopeevip", "shopeemall", "shopeereward",
+    "lazadavn", "lazadamall", "ctvlazada", "tuyendunglazada",
+    "tikivn", "tikivip", "tikictv",
+    "sendovn", "ctvsendo", "sendomall",
+    "tiktokshopvn",
+    "shopaeon", "aeonmall", "aeshopvn",
+    "giaohangnhanh", "ghtk", "ghnexpress", "ghnvn",
 ]
 
 # A SECOND LENS, on page content: the token list is blind to e.g. `56bfrd3jrn.pages.dev` rendering
@@ -131,21 +138,14 @@ CONTENT_QUERIES = [
     ('page.title:"Ngân hàng"', "title:bank"),
     ('page.title:"Dịch vụ công"', "title:public-service"),
     ('page.title:"Sinh trắc học"', "title:sinhtrachoc"),
-    ('page.title:"Điện lực"', "title:dienluc"),
-    ('page.title:"Hóa đơn tiền điện"', "title:evn-bill"),
     ('page.title:"Chuẩn hóa thông tin"', "title:sim-chuanhoa"),
     ('page.title:"Khóa thuê bao"', "title:sim-khoa"),
-    ('page.title:"Nhập học"', "title:nhaphoc"),
-    ('page.title:"Tuyển sinh"', "title:tuyensinh"),
-    ('page.title:"Học phí"', "title:hocphi"),
     ('page.title:"Việc làm online"', "title:vieclam"),
     ('page.title:"Cộng tác viên"', "title:congtacvien"),
     ('page.title:"Vay tiền nhanh"', "title:vaytien"),
-    ('page.title:"Vé máy bay"', "title:vemaybay"),
     ('page.title:"Đầu tư chứng khoán"', "title:chungkhoan"),
     ('page.title:"Bảo hiểm xã hội"', "title:bhxh"),
     ('page.title:"Tra cứu thuế"', "title:tax-lookup"),
-    ('page.title:"Phạt nguội"', "title:phatnguoi"),
     ('page.title:"Căn cước công dân"', "title:cccd"),
     ('page.title:"Định danh điện tử"', "title:vneid-portal"),
     ('page.title:"Đại học Giao thông vận tải"', "title:utc"),
@@ -155,32 +155,45 @@ CONTENT_QUERIES = [
     ('page.title:"Viện kiểm sát"', "title:vienkiemsat"),
     ('page.title:"Trúng thưởng"', "title:trungthuong"),
     ('page.title:"Tri ân khách hàng"', "title:trian"),
-    ('page.title:"Xuất khẩu lao động"', "title:xkld"),
     ('page.title:"Vé concert"', "title:concert"),
     ('page.title:"Khóa tu mùa hè"', "title:khoatu"),
     ('page.title:"Trại hè"', "title:traihe"),
+    # e-commerce lure titles
+    ('page.title:"Shopee tri ân"', "title:shopee-trian"),
+    ('page.title:"Quà tặng Shopee"', "title:shopee-gift"),
+    ('page.title:"Shopee trúng thưởng"', "title:shopee-reward"),
+    ('page.title:"Lazada tri ân"', "title:lazada-trian"),
+    ('page.title:"Cộng tác viên Shopee"', "title:ctv-shopee"),
+    ('page.title:"Cộng tác viên Tiki"', "title:ctv-tiki"),
+    ('page.title:"Cộng tác viên Lazada"', "title:ctv-lazada"),
+    ('page.title:"TikTok Shop" AND (page.domain:*.vn OR page.country:VN)', "title:tiktokshop-vn"),
+    ('page.title:"Cộng tác viên TikTok"', "title:ctv-tiktok"),
+    ('page.title:"Cộng tác viên TikTok Shop"', "title:ctv-tiktokshop"),
+    ('page.title:"Nhiệm vụ TikTok"', "title:nhiemvu-tiktok"),
     ("task.url:*xacminh*", "url:xacminh"),      # "xác minh" — verify (identity/account)
     ("task.url:*nhanqua*", "url:nhanqua"),      # "nhận quà" — claim a gift
     ("task.url:*dangnhap*", "url:dangnhap"),    # "đăng nhập" — log in, as a PATH not a title
     ("task.url:*sinhtrachoc*", "url:sinhtrachoc"),
-    ("task.url:*dienluc*", "url:dienluc"),
-    ("task.url:*hoadondien*", "url:hoadondien"),
     ("task.url:*chuanhoathuebao*", "url:chuanhoathuebao"),
-    ("task.url:*nhaphoc*", "url:nhaphoc"),      # "nhập học" — student enrollment lure
-    ("task.url:*tuyensinh*", "url:tuyensinh"),  # "tuyển sinh" — admissions lure
-    ("task.url:*phatnguoi*", "url:phatnguoi"),  # "phạt nguội" — traffic fine lure
-    ("task.url:*hocphi*", "url:hocphi"),        # "học phí" — tuition lure
     ("task.url:*tracuuthue*", "url:tracuuthue"),# "tra cứu thuế" — tax lookup lure
     ("task.url:*giaothongvantai*", "url:giaothongvantai"),
     ("task.url:*utc2*", "url:utc2"),
     ("task.url:*dhgtvt*", "url:dhgtvt"),
     ("task.url:*vaytien*", "url:vaytien"),
-    ("task.url:*vemaybay*", "url:vemaybay"),
     ("task.url:*trungthuong*", "url:trungthuong"),
-    ("task.url:*trian*", "url:trian"),
-    ("task.url:*xkld*", "url:xkld"),
-    ("task.url:*duhoc*", "url:duhoc"),
+    ("task.url:*tri-an*", "url:tri-an"),
+    ("task.url:*trian-khachhang*", "url:trian-khachhang"),
     ("task.url:*veconcert*", "url:veconcert"),
+    # e-commerce lure URLs
+    ("task.url:*ctvshopee*", "url:ctvshopee"),
+    ("task.url:*tikivip*", "url:tikivip"),
+    ("task.url:*lazadavn*", "url:lazadavn"),
+    ("task.url:*shopeevn*", "url:shopeevn"),
+    ("task.url:*shopee*trian*", "url:shopee-trian"),
+    ("task.url:*shopee*nhanqua*", "url:shopee-nhanqua"),
+    ("task.url:*shopee*quatang*", "url:shopee-gift"),
+    ("task.url:*lazada*nhanqua*", "url:lazada-nhanqua"),
+    ("task.url:*tiki*khuyenmai*", "url:tiki-khuyenmai"),
 ]
 
 FIELDS = ["domain", "first_detected", "brand", "scan_uuid", "task_url", "scan_time", "status",
@@ -227,12 +240,21 @@ def load_official() -> set[str]:
                 "mcredit.com.vn", "lottefinance.vn", "miraeasset.com.vn", "shinhanfinance.com.vn",
                 "ticketbox.vn", "fpt.ai", "fpttelecom.net", "fpt.com.vn",
                 # foreign official homonyms (prevent false positive collection)
-                "agribank.com.ph", "agribank.org.uk",
+                "agribank.com.ph", "agribank.org.uk", "ticketbox.lk",
                 # official telecom subsidiaries, provincial units & e-invoice portals
                 "vnptit.vn", "vnpt-tsc.vn", "vnptdongnai.vn", "vnpthaiphong.vn",
-                "vnpthungyen.com.vn", "vnptthanhhoa.vn", "vnpt-einvoice.com.vn", "vnptigate.vn",
-                "viettelmydata.vn", "viettel-vinvoice.vn", "viettel-cloud.com.vn", "viettel-invoice.vn",
-                "mobifonemoney.vn"}
+                "vnpthungyen.com.vn", "vnptthanhhoa.vn", "vnpt-einvoice.com.vn", "vnpt-invoice.com.vn", "vnptigate.vn",
+                "mobifonemoney.vn", "mobiedu.vn", "evnspc.vn", "coopbank.vn",
+                # verified official e-commerce & shipping platforms
+                "shopee.vn", "lazada.vn", "tiki.vn", "sendo.vn", "aeon.com.vn", "aeon.vn",
+                "giaohangnhanh.vn", "ghn.vn", "ghn.tech", "giaohangtietkiem.vn",
+                # enterprise partners, software vendors & legitimate organisations
+                "sobanhang.com", "truedoc.vn", "siten.vn", "bluestar.com.vn",
+                "nghebanker.com", "hairbank.net", "honguyenvietnam.org", "isb.vn",
+                # notary, technology & industrial compound entities
+                "dichvucongchung.com.vn", "dichvucongchung.org", "dichvucongchung.com", "dichvucongchung.info",
+                "dichvucongnghe.net", "dichvucongnghe.io.vn", "dichvucongnghiephc.vn", "dichvucongnghiepdl.com",
+                "xaydungvadichvucongnghiepvanan.com", "dichvucongtybacninh.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
@@ -447,6 +469,18 @@ def main() -> int:
             # double-counted every hit whose submitter used the www form
             dom = (page.get("domain") or task.get("domain") or "").lower().removeprefix("www.")
             if not dom or dom in seen or dom in cand or is_official(dom, official):
+                continue
+            # Screen out foreign sovereign ccTLDs (.in, .lk, .ph, .id, .br, etc.)
+            if any(dom.endswith(sfx) for sfx in FOREIGN_CCTLDS):
+                continue
+            # Screen out foreign language lure words (Indonesian, Portuguese, etc.)
+            if FOREIGN_KEYWORDS.search(dom) and not VN_CONTEXT_TOKENS.search(dom):
+                continue
+            # Screen out "Bồ Công Anh" (dandelion) falsely matching "bocongan" / "congan"
+            if NON_POLICE_CONGANH.search(dom):
+                continue
+            # Screen out non-public-service compound businesses ("dịch vụ công nghiệp/nghệ/chứng/ty") falsely matching "dichvucong"
+            if NON_PUBLIC_SERVICE_DVC.search(dom):
                 continue
             # the boundary rule only means something for a hostname token; a content hit has no
             # token in the name at all, which is the entire point of that pass

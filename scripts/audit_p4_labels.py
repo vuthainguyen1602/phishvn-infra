@@ -194,8 +194,23 @@ def is_registry_wildcard(domain: str, recorded_ips: frozenset[str] | None = None
     return bool(ips) and ips <= wc
 
 
+# Cong An followed by H must be a province starting with H (Hanoi, Haiphong, Hatinh, Haiduong, Hanam, Haugiang, Hoabinh, Hungyen).
+# Otherwise "conganh" / "boconganh" is "Bồ Công Anh" (dandelion) or personal name "Công Anh".
+NON_POLICE_CONGANH = re.compile(
+    r"conganh(?!(?:anoi|aiphong|atinh|aiduong|anam|augiang|oabinh|ungyen))", re.I)
+
+# Dich vu cong followed by nghiep (industrial), nghe (tech), chung (notary), ty (company).
+NON_PUBLIC_SERVICE_DVC = re.compile(
+    r"dichvucong(?:nghiep|nghe|chung|ty)", re.I)
+
+
 def is_vn_lexical(domain: str) -> bool:
-    return bool(VN_LEXICAL.search(domain))
+    d = domain.lower()
+    if NON_POLICE_CONGANH.search(d):
+        d = NON_POLICE_CONGANH.sub("", d)
+    if NON_PUBLIC_SERVICE_DVC.search(d):
+        d = NON_PUBLIC_SERVICE_DVC.sub("", d)
+    return bool(VN_LEXICAL.search(d))
 
 
 def is_hosted_subdomain(domain: str) -> bool:
@@ -244,6 +259,23 @@ def load_allowlists() -> set[str]:
                      .str.replace(r"^https?://", "", regex=True)
                      .str.split("/").str[0].str.removeprefix("www."))
                 out |= set(s)
+    LEGIT_VN_ENTITIES = {
+        "duhocalpha.vn", "giaiphapduhoc.com", "kienthucduhocmy.com",
+        "eduwork.vn", "ecinvest.vn", "ntcs.com.vn", "vemaybay2424.com",
+        "mobiedu.vn", "edu4life.com.vn", "phatnguoi.com.vn", "checkphatnguoi.com.vn",
+        "damsenwaterpark.com.vn", "evnspc.vn", "coopbank.co.tz", "byltbasics.com",
+        "booking.com", "safekidsfoundation.org", "nutri-ana.online",
+        # partner, fintech integration & legitimate educational/career platforms
+        "sobanhang.com", "truedoc.vn", "siten.vn", "bluestar.com.vn", "nghebanker.com",
+        "hairbank.net", "honguyenvietnam.org", "isb.vn",
+        # notary, technology & industrial compound entities
+        "dichvucongchung.com.vn", "dichvucongchung.org", "dichvucongnghe.io.vn",
+        "dichvucongnghiephc.vn", "xaydungvadichvucongnghiepvanan.com", "dichvucongtybacninh.vn",
+        # verified official e-commerce & shipping platforms
+        "shopee.vn", "lazada.vn", "tiki.vn", "sendo.vn", "aeon.com.vn", "aeon.vn",
+        "giaohangnhanh.vn", "ghn.vn"
+    }
+    out |= LEGIT_VN_ENTITIES
     return {d for d in out if d and d != "nan"}
 
 
