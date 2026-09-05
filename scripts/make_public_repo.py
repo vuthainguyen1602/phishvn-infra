@@ -662,6 +662,33 @@ def _clean_out(out: str) -> None:
         os.makedirs(out)
 
 
+def _stamp_build(out: str, profile: str) -> None:
+    """Record which commit a build directory was made from.
+
+    Not written into the mirror: the stamp lives in this repo, because anything left inside the
+    output is rsynced to the public remote on the next publish. It exists because `_clean_out`
+    already keeps a directory it rebuilds honest, and the failure it cannot see is a directory it
+    never rebuilds -- pass `--out` somewhere else for an afternoon and ./public keeps serving the
+    morning's filenames while looking fine. test_mirror_build_is_current reads this.
+    """
+    import json
+    import subprocess
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True,
+                              text=True, check=True).stdout.strip()
+    except Exception:
+        return
+    path = os.path.join(ROOT, "data", "interim", "mirror_builds.json")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        book = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        book = {}
+    book[os.path.relpath(os.path.abspath(out), ROOT)] = {"commit": head, "profile": profile}
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(book, fh, indent=1, sort_keys=True)
+
+
 def _count_files(out: str) -> int:
     """Skips .git: counting the mirror's object database made the "files" figure move with every
     commit there (272 -> 282 across one commit) as if the export had grown."""
@@ -769,6 +796,7 @@ def build_infra(out: str) -> None:
     _row_gate(out, INFRA_OPS, os.path.join("docs", "collection_protocol.md"))
     _link_gate(out, DOC_LINK_WAIVERS)
 
+    _stamp_build(out, "infra")
     print(f"[+] public_infra repo assembled at {out}  ({_count_files(out)} files)")
     print("    excluded: papers/, PREREG, scripts/.env*, data/ payloads")
 
@@ -927,6 +955,7 @@ def main():
     _prose_gate(args.out, files, PROSE_WAIVERS)
     _link_gate(args.out, DOC_LINK_WAIVERS)
 
+    _stamp_build(args.out, "default")
     n = _count_files(args.out)
     print(f"[+] public repo assembled at {args.out}  ({n} files)")
     print("    excluded: papers/, proposal/, data/raw, data/interim, data/processed, data/private")
