@@ -9,7 +9,11 @@
 # minutes after the matched arm's :25 tick so the two samplers never overlap. The log directory
 # must exist BEFORE cron opens its redirect (the first tick, 13:45, died on a missing directory).
 set -euo pipefail
-REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ -d "$(dirname "$0")/../../data" ]; then
+  REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+else
+  REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+fi
 cd "$REPO"
 mkdir -p data/raw/ct_benign_vn
 # Age rotation for the .vn arm, widened 2026-08-24 (PREREG amendment of that date). Same two

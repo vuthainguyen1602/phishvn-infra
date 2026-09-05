@@ -1,26 +1,10 @@
 #!/usr/bin/env python3
+"""genfile.py — Atomic file writer for generated paper assets.
+
+Guarantees content is completely formed before touching disk and atomically
+replaces the target file to avoid half-written or zero-byte assets.
 """
-genfile.py — write a generated paper asset, or leave the previous one untouched.
 
-WHY THIS EXISTS. `open(path, "w").write(build())` truncates the file BEFORE build() runs, so any
-exception inside the generator leaves the committed asset at zero bytes. That happened here: an
-import error emptied a generated .tex holding one of a manuscript's stated conclusions, LaTeX
-built without complaint, and the sentence simply left the paper. In a repository whose entire
-discipline is that generated files cannot go stale, silently emptying one is worse than
-staleness -- a stale number looks wrong to a reader who checks, and a missing sentence looks
-like nothing at all.
-
-The same shape has a second exposure that no amount of care at the call site fixes: a run killed
-partway (a timeout, a Ctrl-C) leaves a half-written file that is valid enough to compile.
-
-So, two properties:
-  * content first, file last  -- the target is not opened until the text exists;
-  * atomic replace           -- the file a reader sees is always a complete previous or complete
-                                new version, never a partial one.
-
-An empty or whitespace-only body is refused rather than written. No generator in this repository
-has a reason to emit one, and it is precisely the state that hides the failure above.
-"""
 from __future__ import annotations
 import os
 import tempfile

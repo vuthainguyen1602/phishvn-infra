@@ -232,7 +232,7 @@ def _centre(b: dict) -> float:
 
 
 def make_figure(recs, bins: list[dict], retry: list[dict], tail: dict) -> str:
-    from figstyle import apply, BLUE, ORANGE, GRAY, INK
+    from figstyle import apply, BLUE, ORANGE, INK
     plt = apply()
 
     fig, (ax, ax2) = plt.subplots(1, 2, figsize=(7.4, 3.1),

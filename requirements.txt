@@ -2,21 +2,10 @@
 requests>=2.31
 beautifulsoup4>=4.12
 pandas>=2.0
-playwright>=1.44   # chỉ cần cho safe_crawl.py; sau khi cài chạy: playwright install chromium
-# telegram_sms_bot.py & imap_honeypot.py: chỉ cần requests + thư viện chuẩn (không cần python-telegram-bot)
+playwright>=1.44        # scripts/core/collect/safe_crawl.py (playwright install chromium)
+
 # ---------------------------------------------------------------------------
-# NUMERIC FLOOR — pinned exactly, on purpose.
-#
-# These libraries do not merely need to be *present*; their versions DECIDE the numbers the papers
-# print. We learned this the expensive way: a scikit-learn upgrade moved the Random Forest
-# cross-dataset generalisation gap from 0.259 to 0.239 and silently invalidated two published
-# claims, which had to be rewritten. Tree ensembles are the sensitive part (split tie-breaking and
-# RNG streams change between minor releases); the data-collection dependencies above stay on `>=`
-# because they affect what is fetched, not what is computed.
-#
-# Changing any pin below means the canonical matrices must be regenerated and `make claims` re-run.
-# scripts/record_environment.py enforces this: it records these versions alongside the generated
-# assets, and check_paper_claims.py fails if the running environment no longer matches.
+# NUMERIC FLOOR — pinned exactly for reproducible paper claims (make claims)
 scikit-learn==1.4.2
 xgboost==2.1.1
 lightgbm==4.5.0
@@ -25,34 +14,33 @@ numpy==1.26.4
 scipy==1.13.1
 shap==0.44.1
 joblib>=1.3
-# PhoBERT (nặng, nên có GPU) — chỉ cần cho train_text_phobert.py / train_content_fusion.py
+
+# Plotting. Every figure in the repo is drawn through core/lib/figstyle.py, which imports this
+# and installs the axis guard, so an install without it runs every experiment and draws nothing.
+# Not pinned exactly: it decides how a number is drawn, not what the number is.
+matplotlib>=3.8
+
+# PhoBERT & NLP (Vietnamese text models)
 transformers>=4.40
 torch>=2.1
-pyvi>=0.1.1            # word segmentation cho PhoBERT (ngân hàng -> ngân_hàng)
-sentencepiece>=0.2     # tokenizer cho ViSoBERT/XLM-R
-# Nếu torch < 2.6: chạy scripts/convert_phobert_safetensors.py một lần cho mỗi checkpoint
-# bin-only (phobert-base, phobert-base-v2, visobert) — xem docstring của script.
-# MLOps-lite (reproducibility)
-mlflow>=2.10          # optional experiment tracking (train scripts auto-detect)
-dvc>=3.0              # optional data/pipeline versioning
-pytest>=8.0           # unit tests / CI
-# PINNED EXACTLY, not >=, and not because of the API deprecation warning it emits. This library
-# decides what a registrable domain IS, and make_p4_assets.py recomputes that unit at ANALYSIS
-# time, so two hosts on two versions disagree about what a row is. Measured 2026-08-24 over the
-# 26,945 hostnames in host_infra: the collector (5.3.1) and this machine (3.2.0) folded 192 of
-# them differently, because 3.2.0's bundled suffix snapshot predates io.vn and id.vn -- so 128
-# distinct Vietnamese registrations collapsed into the two bare suffixes `io.vn` and `id.vn`,
-# exactly the pages.dev failure the psl.py docstring describes. 5.3.1 is the version the device
-# collected with; change it only with a re-run of the population build behind it.
-tldextract==5.3.1   # CompPhish-compatible URL features (multi-part TLDs); see note above
-# Optional enrichment / analysis
-python-whois           # whois_dns_enrich.py
-dnspython              # whois_dns_enrich.py; REQUIRED by watch_host_infra.py -- it is the only
-                       # way that collector asks a DNS question, and without it every row it
-                       # writes records "no A record" for a domain nothing ever queried
-opencv-python          # qr_decode.py (or: pyzbar + pillow)
-statsmodels            # analyze_p3.py (GEE/McNemar)
-# Edge export (optional, P7)
+pyvi>=0.1.1             # word segmentation cho PhoBERT (ngân hàng -> ngân_hàng)
+sentencepiece>=0.2      # tokenizer cho ViSoBERT/XLM-R
+
+# MLOps-lite (reproducibility & CI)
+mlflow>=2.10            # optional experiment tracking (train scripts auto-detect)
+dvc>=3.0                # optional data/pipeline versioning
+pytest>=8.0             # unit tests / CI
+
+# Domain & URL parsing
+# Pinned to 5.3.1: contains Vietnamese public suffixes (io.vn, id.vn) matching collector
+tldextract==5.3.1       # CompPhish-compatible URL features (multi-part TLDs)
+
+# Optional live collection, DNS, WHOIS & vision utilities
+python-whois            # scripts/studies/p4_infra/watch_host_infra.py
+dnspython               # scripts/studies/p4_infra/watch_host_infra.py
+opencv-python           # scripts/core/lib/qr_decode.py
+
+# Edge runtime export (optional, P7 / future_edge)
 onnx
 skl2onnx
 onnxruntime

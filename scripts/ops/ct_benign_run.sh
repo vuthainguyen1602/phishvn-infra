@@ -2,7 +2,11 @@
 # Wrapper for the CT-sampled benign arm (run by cron on the Jetson).
 # No API key: CT logs are public, so unlike the other collectors this one needs no scripts/.env.
 set -euo pipefail
-REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ -d "$(dirname "$0")/../../data" ]; then
+  REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+else
+  REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+fi
 cd "$REPO"
 mkdir -p data/raw/ct_benign
 # Age is ROTATED across `hour % 6`, not fixed: a constant --age-days would let this wrapper, not

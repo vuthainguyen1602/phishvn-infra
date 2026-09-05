@@ -535,7 +535,7 @@ def write_cert_age_figure(pop: pd.DataFrame) -> None:
     flatten both sampled arms into the first bin. Curves are direct-labelled at their right end
     (figstyle rule: colour is never the sole encoding), with the arm's n so the figure states
     its own support."""
-    from figstyle import apply, BLUE, GRAY, INK, ORANGE
+    from figstyle import apply, BLUE, GRAY, ORANGE
     plt = apply()
     import numpy as np
 
@@ -576,7 +576,7 @@ def write_funnel_accrual_figure() -> None:
     admitted conditioned phishing registrable domains per detection day as bars and their running
     total as a line, read from accrual.csv. No trigger line, no projection, no calendar bound:
     a data article reports what was collected, not when a study expects to start."""
-    from figstyle import apply, BLUE, GRAY, INK, ORANGE
+    from figstyle import apply, BLUE, INK, ORANGE
     plt = apply()
     fun = [{"stage": r["stage"], "surviving": int(r["surviving"]),
             "removed": int(r["removed"]) if r["removed"] else ""}

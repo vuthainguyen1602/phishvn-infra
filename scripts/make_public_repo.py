@@ -34,30 +34,25 @@ except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 
 COPY_DIRS = ["configs"]                                # safe: config only
-# dvc.yaml ships because the README lists it and both its stages (normalize, train_url) are exported.
+# The loop below refuses an entry that does not exist, rather than skipping it. A silent skip
+# left the mirror serving dvc.yaml on every refresh after 8944c8a deleted it here: a file the
+# published repo had and this one did not.
 # CITATION.cff is NOT here: it is version-bound and handled below.
-COPY_FILES = ["requirements.txt", "LICENSE", "LICENSE-CODE", "dvc.yaml"]
+COPY_FILES = ["requirements.txt", "LICENSE", "LICENSE-CODE"]
 DOCS_FROM = "data/docs"
 
-# WHITELIST EVERYTHING THAT GROWS. tests/ and data/docs/ were copied wholesale until
-# 2026-08-11; both grew private material a re-export would have published, and the
-# private-suite imports broke `pytest -q` on the mirror
+# Whitelist test and doc files for public release.
 INCLUDE_TESTS = ["test_pipeline.py"]                   # the only suite whose imports are exported
 INCLUDE_DOCS = ["datasheet.md", "schema.md", "data_sources.md"]
 
-# Rationale the exported scripts point at, on the same footing as INFRA_DECISION_DOCS: ship
-# the script without its note and the mirror trades an explanation for a dead link (this
-# profile carried three, 2026-08-25 to 2026-08-28). Held to the no-waiver rule the
-# hand-written docs are, so neither names a paper. _link_gate fails on a note not listed here
+# Shipped decision documents linked by exported scripts.
 DECISION_DOCS = [
     os.path.join("docs", "decisions", "novelty-probe-two-sided.md"),
     os.path.join("docs", "decisions", "guard-control-rank-test.md"),
     os.path.join("docs", "decisions", "vn-filter-aligned-min-token.md"),
 ]
 
-# The label-audit instruments P1 states are released with the code. key.csv NEVER ships: it
-# maps blinded id -> source label and would destroy the blinding. MACHINE_PASS.csv does --
-# it backs the datasheet's "not adjudicable from archives" claim and carries no source labels
+# Label-audit instruments released with code (key.csv withheld for blinding).
 INCLUDE_VERIFY = ["CODEBOOK.md", "annotator_A.csv", "annotator_B.csv", "MACHINE_PASS.csv", "adjudicated.csv"]
 VERIFY_FROM = "data/docs/verify"
 # Audit artefacts the revised manuscript declares released, as (source, exported name);
@@ -66,23 +61,13 @@ INCLUDE_AUDITS = [
     ("data/reports/token_audit_sample.csv", "token_audit_sample.csv"),
     ("data/processed/first_seen_validation.csv", "first_seen_validation.csv"),
     ("data/processed/first_seen_validation_summary.json", "first_seen_validation_summary.json"),
-    # the unified-feed snapshot the token audit sampled from (836 -> 1,115 claim), archived so
-    # the audited numbers are reproducible against a fixed input rather than a moving feed
+    # Fixed snapshot for token audit reproducibility.
     ("data/interim/vn_phishing_candidates_20260812.csv", "feed_snapshot_20260812.csv"),
-    # The 386 paraphrased lures. Attack content, released on purpose: the fusion study's ethics
-    # section argues that an evasion result nobody can reproduce is one nobody can check, and that
-    # a defender has to be able to run the attack against their own detector. It is publishable
-    # because it is inert by construction, and the file was measured against that construction
-    # before it shipped rather than trusted: every row carries the simulated link
-    # http://sim.example.vn/x and no other URL, none of 29 real Vietnamese brand tokens, and no
-    # Vietnamese diacritics. p3_jaccard_check.guardrail_problems reports 0 violations over all 386.
-    # What stays withheld is the generation PROMPTING, exactly as that section promises: the
-    # exported generator applies the guardrails to pre-generated rewrites and makes no API call.
+    # 386 paraphrased attack lures (verified inert, simulated links only, no prompt leak).
     ("data/processed/p3/p3_paraphrase.csv", "p3_paraphrase_lures.csv"),
 ]
 
-# CITATION.cff tracks the LOCAL corpus, which ran ahead of what readers could fetch, so it
-# ships only when its DOI equals this constant. Bump when the next version goes live
+# CITATION.cff tracks the published DOI version.
 PUBLISHED_DOI = "10.17632/b97hxbxtpd.4"
 
 # Exported code that names a docs/ path belonging to a DIFFERENT artefact -- not a pointer this
@@ -105,11 +90,7 @@ DOC_LINK_WAIVERS = {
                          " empty input, not a path this mirror is expected to carry",
 }
 
-# PROSE GATE. Comments/docstrings are what leaked: four exported modules named unreleased
-# papers and quoted their numbers, caught only by a pre-push diff read. The paper LABEL is
-# the tell, and matching it caught all four. Floor, not ceiling -- an unattributed leak
-# still passes. P1 is absent on purpose: it is the paper this mirror accompanies, and
-# including it took the flag rate from 4/19 to 12/19, all noise
+# Gate regex: catches unintended mentions of unreleased paper numbers/labels in comments/docstrings.
 PAPER_LABEL = re.compile(r"\bP[2-8][ab]?\b(?!\w)|papers/P[2-8]|P[2-8]_[a-z]+")
 
 # file -> why its labels are legitimate. A reason is required, and waived labels are still printed
@@ -121,11 +102,7 @@ PROSE_WAIVERS = {
     # article's file table IS the deposit's contract, so build_p4b refuses to run when the two
     # disagree on a row count. It cannot run in the mirror anyway -- it reads papers/
     "make_release.py": "the P4b deposit guard names the article whose file table it checks against",
-    # EIGHT scripts ARE the URL-benchmark study's own code, exported because its conclusion
-    # promises the code behind every table. Stripping the label from a docstring that opens
-    # "the P2 benchmark" would leave the file describing an experiment it cannot name, which
-    # costs a cloner more than the label does. Decided 2026-08-18; run_cross_dataset.py joined
-    # 2026-08-25, its label having arrived with the diagonal-leakage fix without a waiver
+    # P2 URL-benchmark study scripts.
     "run_p2_benchmark.py": "this IS that study's benchmark driver; the label names what it runs",
     "run_p2_temporal_strict.py": "this IS that study's phishing-temporal protocol",
     "run_p2_stacking_baseline.py": "this IS that study's stacking arm",
@@ -136,10 +113,15 @@ PROSE_WAIVERS = {
     "run_cross_dataset.py": "the transfer matrix of that study; the leakage note points at its "
                             "sibling temporal protocol, which carries the same domain guard",
     "run_p2_charcnn.py": "this IS that study's CharCNN arm",
-    # ELEVEN scripts ARE the XAI study's own code, exported 2026-09-02 for the same reason as
-    # the benchmark's: that paper states in the present tense that this code is public, and it
-    # was not. Mentions of the OTHER unreleased siblings were removed rather than waived --
-    # the gate is right that those are not this repository's to announce.
+    "run_p2_hpo.py": "this IS that study's tuning arm; the label names what it tunes",
+    "p2_dup_leakage.py": "that study's memorisation check on its own random split",
+    "p2_xdata_bootstrap.py": "the bootstrap CIs for that study's transfer matrix",
+    "make_p2_shiftmatrix_figure.py": "draws that study's shift matrix; the path it writes names it",
+    "audit_xdata_leakage.py": "the domain-disjoint guard that study's transfer diagonal carries",
+    "run_combined_training.py": "the pooling baseline of that study; OUT_TEX writes into it",
+    "run_ml_label_sensitivity.py": "one script serves the tier-sensitivity table of every ML"
+                                   " study, so its docstring has to say which arm is which",
+    # P6 XAI / suffix blind spot study scripts.
     "run_p6_suffix_blindspot.py": "this IS that study's blind-spot measurement",
     "run_p6_vn_deficit.py": "this IS that study's pooled-versus-split deficit",
     "run_p6_vn_reading.py": "this IS that study's off-manifold diagnostic",
@@ -151,10 +133,7 @@ PROSE_WAIVERS = {
     "run_p6_budget_frontier.py": "this IS that study's reweighting frontier",
     "run_p6_case_studies.py": "this IS that study's worked cases",
     "make_p6_xai_assets.py": "generates that study's tables; the paths it writes name them",
-    # P3's own code naming P3, on the same principle as the two studies above: stripping the label
-    # from a docstring that opens "the P3 paraphrase corpus" leaves the file describing an
-    # experiment it cannot name. Mentions of OTHER unreleased siblings are still removed, not
-    # waived -- that is what happened to P6's references to P3, P4 and P5 on 2026-09-03.
+    # P3 multimodal study scripts.
     "make_p3_assets.py": "this IS that study's asset generator",
     "make_p3_band_assets.py": "this IS that study's paraphrase-strength band",
     "make_p3_cross_generator_eval.py": "this IS that study's cross-generator evaluation",
@@ -179,103 +158,104 @@ PROSE_WAIVERS = {
 # role-subfolder paths in THIS repo -- the mirror stays FLAT, and the uniform bootstrap
 # headers fall back via ImportError in that layout
 INCLUDE_SCRIPTS = [
-    "collect/scrape_vn_phishing.py",     # collect phishing URLs (NCSC blacklist + feeds)
-    "collect/scrape_trusted_orgs.py",    # collect benign trusted-org URLs
-    "collect/fetch_tranco.py",           # hard benign negatives (Tranco)
-    "collect/fetch_urlscan.py",          # preliminary HTML/screenshot subset
-    "collect/whois_dns_enrich.py",       # optional URL/host enrichment
-    "dataset/normalize_merge.py",        # build the unified URL dataset + group-aware temporal split
-    "lib/compphish_features.py",         # CompPhish-aligned URL feature schema
-    "dataset/align_compphish.py",        # re-featurise URLs into the CompPhish schema
-    "train/train_url_baseline.py",       # URL baselines (multi-seed + bootstrap CI)
-    "audit/make_verification_sample.py", # label-quality audit (Cohen's kappa)
-    "collect/watch_chongluadao.py",      # the live ChongLuaDao watcher feeding the corpus
-    "collect/fetch_phishing_feeds.py",   # the feed importer test_pipeline.py exercises
-    "lib/psl.py",                        # PSL domain folding shared by collection and evaluation
-    "lib/vn_filter.py",                  # is-this-VN-targeting test used across collection
-    "dataset/build_brand_tokens.py",     # registry-derived brand tokens the filter matches on
-    "assets/make_p1_assets.py",         # regenerate the paper's figure + tables from data
-    "collect/fetch_chongluadao.py",      # import the ChongLuaDao mirror snapshot (named in the paper)
-    "dataset/chongluadao_first_seen.py", # reconstruct per-domain first-seen dates (named in the paper)
-    "audit/validate_first_seen.py",      # accuracy estimate for the reconstructed dates (rev. #1)
-    "audit/audit_token_filter.py",       # sampled audit of the VN-targeting token filter (rev. #1)
-    "assets/export_p1_results.py",      # the deposited benchmark-evidence bundle's generator
-    "dataset/derive_abuse_type.py",      # types the positive class; its output ships in the open tier
-    "audit/collect_audit_evidence.py",   # gathers the lookup evidence the released audit sheets need
-    "audit/machine_pass_composition.py", # the archive-content pass, and the control showing it fails
-    "release/make_release.py",           # package the citable open/gated release
-    "release/make_public_repo.py",       # this exporter
-    "lib/genfile.py",                    # atomic writer every asset generator goes through
-    "lib/figstyle.py",                   # house palette + rcParams (and it installs the axis guard)
-    "lib/axguard.py",                    # refuses to write a figure that clips its own data
+    "core/collect/scrape_vn_phishing.py",     # collect phishing URLs (NCSC blacklist + feeds)
+    "core/collect/scrape_trusted_orgs.py",    # collect benign trusted-org URLs
+    "core/collect/fetch_tranco.py",           # hard benign negatives (Tranco)
+    "core/collect/fetch_urlscan.py",          # preliminary HTML/screenshot subset
+    "core/collect/whois_dns_enrich.py",       # optional URL/host enrichment
+    "core/dataset/normalize_merge.py",        # build the unified URL dataset + group-aware temporal split
+    "core/lib/compphish_features.py",         # CompPhish-aligned URL feature schema
+    "core/dataset/align_compphish.py",        # re-featurise URLs into the CompPhish schema
+    "core/baselines/train_url_baseline.py",       # URL baselines (multi-seed + bootstrap CI)
+    "studies/p1_dataset/make_verification_sample.py", # label-quality audit (Cohen's kappa)
+    "core/collect/watch_chongluadao.py",      # the live ChongLuaDao watcher feeding the corpus
+    "core/collect/fetch_phishing_feeds.py",   # the feed importer test_pipeline.py exercises
+    "core/lib/psl.py",                        # PSL domain folding shared by collection and evaluation
+    "core/lib/vn_filter.py",                  # is-this-VN-targeting test used across collection
+    "core/dataset/build_brand_tokens.py",     # registry-derived brand tokens the filter matches on
+    "studies/p1_dataset/make_p1_assets.py",         # regenerate the paper's figure + tables from data
+    "core/collect/fetch_chongluadao.py",      # import the ChongLuaDao mirror snapshot (named in the paper)
+    "core/dataset/chongluadao_first_seen.py", # reconstruct per-domain first-seen dates (named in the paper)
+    "studies/p1_dataset/validate_first_seen.py",      # accuracy estimate for the reconstructed dates (rev. #1)
+    "studies/p1_dataset/audit_token_filter.py",       # sampled audit of the VN-targeting token filter (rev. #1)
+    "studies/p1_dataset/export_p1_results.py",      # the deposited benchmark-evidence bundle's generator
+    "core/dataset/derive_abuse_type.py",      # types the positive class; its output ships in the open tier
+    "studies/p1_dataset/collect_audit_evidence.py",   # gathers the lookup evidence the released audit sheets need
+    "studies/p1_dataset/machine_pass_composition.py", # the archive-content pass, and the control showing it fails
+    "core/release/make_release.py",           # package the citable open/gated release
+    "core/release/make_public_repo.py",       # this exporter
+    "core/lib/genfile.py",                    # atomic writer every asset generator goes through
+    "core/lib/figstyle.py",                   # house palette + rcParams (and it installs the axis guard)
+    "core/lib/axguard.py",                    # refuses to write a figure that clips its own data
     # P2 (URL benchmark) — the conclusion promises the code behind every table
-    "train/run_p2_benchmark.py",         # 7-family benchmark under the bundled protocols
-    "train/run_p2_temporal_strict.py",   # the phishing-temporal protocol (+ rolling origins)
-    "train/run_p2_stacking_baseline.py", # stacked ensembles / base-learner combos
-    "train/run_p2_drift_forecastability.py",  # the three forecastability diagnostics
-    "train/run_cross_dataset.py",        # 4-corpus transfer matrix
-    "train/hpo_gwo.py",                  # corrected GWO; no comparison is reported
-    "train/run_gwo_temporal.py",         # the HPO arm on the temporal window
-    "audit/audit_label_noise.py",        # confident-learning label-noise audit
-    "lib/paired_eval.py",                # NB-corrected paired t-test + BH (all significance)
-    "train/run_p2_charcnn.py",           # the CharCNN arm. Exported 2026-09-02: P2's results
-                                         # discuss it and P6 builds on it, but it had been left
-                                         # out of a list whose stated rule is "the code behind
-                                         # every table" -- found by the closure gate, not by eye
-    "assets/make_p2_bench_assets.py",    # regenerates every P2 table/figure/verdict macro
-    # P6 (XAI / suffix blind spot) -- its "Data and code availability" section states, in the
-    # present tense, that this code is public. That was false until 2026-09-02: none of these
-    # eleven were exported while the paper claimed all of them. A referee can click the URL.
-    "train/run_p6_suffix_blindspot.py",  # the blind-spot measurement the abstract opens with
-    "train/run_p6_vn_deficit.py",        # the pooled-vs-split .vn deficit
-    "train/run_p6_vn_reading.py",        # the off-manifold diagnostic on tld_len
-    "train/run_p6_group_threshold.py",   # the per-group threshold remedy (0.906 -> 0.177)
-    "train/run_p6_prospective_ablation.py",  # locked forward holdout + the no-tld_len refit
-    "train/run_p6_protocol_shap.py",     # SHAP under both protocols (the rho = 0.968 claim)
-    "train/run_p6_attribution_drift.py", # the re-seeding band that rho is compared against
-    "train/run_p6_charcnn_strata.py",    # the deployment-stack replication
-    "train/run_p6_budget_frontier.py",   # eight-cell reweighting / budget frontier
-    "train/run_p6_case_studies.py",      # the worked cases behind the .id finding
-    "assets/make_p6_xai_assets.py",      # regenerates every P6 table, figure and verdict macro
-    # QR / quishing benchmark -- its "Data and Code Availability" names this repository. The
-    # RESTORATION scripts are deliberately absent: that study was split out of the submitted
-    # article and travels with its own paper, and the article says so rather than implying the
-    # whole study ships here.
-    "dataset/gen_synthetic_qr.py",       # the controlled render generator the benchmark runs on
-    "audit/analyze_qr_dfr.py",           # the decode-failure-rate analysis and its two registered tests
-    "audit/qr_prevalence.py",            # the landing-page prevalence audit
-    "collect/qr_scan.py",                # the scanner behind the landing-page audit
-    "collect/qr_submit.py",              # the submission side of that audit
-    "audit/backfill_qr_examined.py",     # reconciles the pages-examined denominator
-    "assets/make_qr_visual_assets.py",   # regenerates the paper's QR figures and tables
-    "train/benchmark_qr.py",             # the sweep itself; the generator drives it
-    "lib/qr_decode.py",                  # the three-decoder wrapper every arm reads through
-    "lib/emvco.py",                      # EMVCo payment-QR parsing used by the landing-page audit
-    # P3 (content + URL fusion) -- its "Data and code availability" promises the training and
-    # evaluation code, the paraphrase protocol and the label-audit instruments by name.
-    "assets/make_p3_assets.py",          # regenerates the paper's tables and figures
-    "assets/make_p3_band_assets.py",     # the paraphrase-strength band
-    "assets/make_p3_cross_generator_eval.py",  # the cross-generator transfer evaluation
-    "assets/make_p3_dose_response.py",   # the dose-response curve and its notes
-    "assets/make_p3_llm_assets.py",      # the LLM arm's tables
-    "assets/make_p3_llm_detector_assets.py",   # the LLM-detector comparison
-    "assets/make_p3_paraphrase_assets.py",     # the paraphrase attack's tables
-    "assets/make_p3_scenario_ood.py",    # the out-of-scenario split
-    "assets/p3_paraphrase_band.py",      # band construction shared by those generators
-    "audit/p3_jaccard_check.py",         # lexical-overlap audit of the paraphrases
-    "audit/p3_nuisance_floor.py",        # the nuisance floor the effect is measured against
-    "audit/p3_xdata_bootstrap.py",       # cluster bootstrap for the cross-dataset arm
-    "dataset/p3_gemini_generator.py",    # the paraphrase generator (the protocol itself)
-    "dataset/p3_paraphrase_corpus.py",   # builds the paraphrase corpus and its lure sets
-    "dataset/p3_paraphrase_ext.py",      # the extension round
-    "train/p3_paired_test.py",           # the paired test behind every reported contrast
-    "train/train_content_fusion.py",     # the training code the availability sentence names
-    "train/train_fusion.py",             # the fusion head every asset generator imports
-    "train/train_html_baseline.py",      # the HTML channel
-    "train/train_image_baseline.py",     # the screenshot channel
-    "lib/extract_js_features.py",        # the JS features the content model reads
-    "train/llm_content_baseline.py",     # the LLM baseline that study reports beside the encoders
-    "train/convert_phobert_safetensors.py",  # the checkpoint conversion the training code needs
+    "studies/p2_url_benchmark/run_p2_benchmark.py",         # 7-family benchmark under the bundled protocols
+    "studies/p2_url_benchmark/run_p2_temporal_strict.py",   # the phishing-temporal protocol (+ rolling origins)
+    "studies/p2_url_benchmark/run_p2_stacking_baseline.py", # stacked ensembles / base-learner combos
+    "studies/p2_url_benchmark/run_p2_drift_forecastability.py",  # the three forecastability diagnostics
+    "studies/p3_multimodal/run_cross_dataset.py",        # 4-corpus transfer matrix
+    "studies/p2_url_benchmark/hpo_gwo.py",                  # corrected GWO; no comparison is reported
+    "studies/p3_multimodal/run_gwo_temporal.py",         # the HPO arm on the temporal window
+    "studies/p2_url_benchmark/audit_label_noise.py",        # confident-learning label-noise audit
+    "core/lib/paired_eval.py",                # NB-corrected paired t-test + BH (all significance)
+    "studies/p2_url_benchmark/run_p2_charcnn.py",           # CharCNN arm
+    "studies/p2_url_benchmark/make_p2_bench_assets.py",    # regenerates every P2 table/figure/verdict macro
+    "studies/p2_url_benchmark/make_p2_shiftmatrix_figure.py",  # the shift matrix drawn against time (its figure)
+    "studies/p2_url_benchmark/run_p2_hpo.py",               # the tuning arm behind the HPO table
+    "studies/p2_url_benchmark/run_p2_fcts.py",              # E5/D4: forward-chained meta-learning control
+    "studies/p2_url_benchmark/run_p2_residual_lambda.py",   # E4: residual-backbone sensitivity (prereg arm)
+    "studies/p2_url_benchmark/run_p2_source_probe.py",      # the benign-source swap the CharCNN margin is checked against
+    "studies/p2_url_benchmark/p2_dup_leakage.py",           # how much of the random split is memorisable (the 81% twins)
+    "studies/p2_url_benchmark/p2_xdata_bootstrap.py",       # bootstrap CIs for the transfer-matrix cells
+    "studies/p2_url_benchmark/audit_xdata_leakage.py",      # the domain-disjoint guard on the transfer diagonal
+    "studies/p3_multimodal/run_combined_training.py",       # pooling three corpora: the "just add corpora" baseline
+    "studies/p3_multimodal/run_ml_label_sensitivity.py",   # the tier/noise sensitivity tables three papers print
+    # P6 (XAI / suffix blind spot)
+    "studies/p6_xai/run_p6_suffix_blindspot.py",  # the blind-spot measurement the abstract opens with
+    "studies/p6_xai/run_p6_vn_deficit.py",        # the pooled-vs-split .vn deficit
+    "studies/p6_xai/run_p6_vn_reading.py",        # the off-manifold diagnostic on tld_len
+    "studies/p6_xai/run_p6_group_threshold.py",   # the per-group threshold remedy (0.906 -> 0.177)
+    "studies/p6_xai/run_p6_prospective_ablation.py",  # locked forward holdout + the no-tld_len refit
+    "studies/p6_xai/run_p6_protocol_shap.py",     # SHAP under both protocols (the rho = 0.968 claim)
+    "studies/p6_xai/run_p6_attribution_drift.py", # the re-seeding band that rho is compared against
+    "studies/p6_xai/run_p6_charcnn_strata.py",    # the deployment-stack replication
+    "studies/p6_xai/run_p6_budget_frontier.py",   # eight-cell reweighting / budget frontier
+    "studies/p6_xai/run_p6_case_studies.py",      # the worked cases behind the .id finding
+    "studies/p6_xai/make_p6_xai_assets.py",      # regenerates every P6 table, figure and verdict macro
+    # QR / quishing benchmark
+    "studies/future_quishing/gen_synthetic_qr.py",       # the controlled render generator the benchmark runs on
+    "studies/future_quishing/analyze_qr_dfr.py",           # the decode-failure-rate analysis and its two registered tests
+    "studies/future_quishing/qr_prevalence.py",            # the landing-page prevalence audit
+    "studies/future_quishing/qr_scan.py",                # the scanner behind the landing-page audit
+    "studies/future_quishing/qr_submit.py",              # the submission side of that audit
+    "studies/future_quishing/backfill_qr_examined.py",     # reconciles the pages-examined denominator
+    "studies/future_quishing/make_qr_visual_assets.py",   # regenerates the paper's QR figures and tables
+    "studies/future_quishing/benchmark_qr.py",             # the sweep itself; the generator drives it
+    "core/lib/qr_decode.py",                  # the three-decoder wrapper every arm reads through
+    "core/lib/emvco.py",                      # EMVCo payment-QR parsing used by the landing-page audit
+    # P3 (content + URL fusion)
+    "studies/p3_multimodal/make_p3_assets.py",          # regenerates the paper's tables and figures
+    "studies/p3_multimodal/make_p3_band_assets.py",     # the paraphrase-strength band
+    "studies/p3_multimodal/make_p3_cross_generator_eval.py",  # the cross-generator transfer evaluation
+    "studies/p3_multimodal/make_p3_dose_response.py",   # the dose-response curve and its notes
+    "studies/p3_multimodal/make_p3_llm_assets.py",      # the LLM arm's tables
+    "studies/p3_multimodal/make_p3_llm_detector_assets.py",   # the LLM-detector comparison
+    "studies/p3_multimodal/make_p3_paraphrase_assets.py",     # the paraphrase attack's tables
+    "studies/p3_multimodal/make_p3_scenario_ood.py",    # the out-of-scenario split
+    "studies/p3_multimodal/p3_paraphrase_band.py",      # band construction shared by those generators
+    "studies/p3_multimodal/p3_jaccard_check.py",         # lexical-overlap audit of the paraphrases
+    "studies/p3_multimodal/p3_nuisance_floor.py",        # the nuisance floor the effect is measured against
+    "studies/p3_multimodal/p3_xdata_bootstrap.py",       # cluster bootstrap for the cross-dataset arm
+    "studies/p3_multimodal/p3_gemini_generator.py",    # the paraphrase generator (the protocol itself)
+    "studies/p3_multimodal/p3_paraphrase_corpus.py",   # builds the paraphrase corpus and its lure sets
+    "studies/p3_multimodal/p3_paraphrase_ext.py",      # the extension round
+    "studies/p3_multimodal/p3_paired_test.py",           # the paired test behind every reported contrast
+    "studies/p3_multimodal/train_content_fusion.py",     # the training code the availability sentence names
+    "studies/p3_multimodal/train_fusion.py",             # the fusion head every asset generator imports
+    "core/baselines/train_html_baseline.py",      # the HTML channel
+    "core/baselines/train_image_baseline.py",     # the screenshot channel
+    "core/lib/extract_js_features.py",        # the JS features the content model reads
+    "studies/p3_multimodal/llm_content_baseline.py",     # the LLM baseline that study reports beside the encoders
+    "core/baselines/convert_phobert_safetensors.py",  # the checkpoint conversion the training code needs
 ]
 
 # ----------------------------------------------------------------------------------------
@@ -303,40 +283,33 @@ INFRA_DECISION_DOCS = [
 # The scripts the data article names, plus their import closure (the closure gate is the
 # arbiter: add here only what it reports dangling). Flat on export, like the default profile.
 INFRA_SCRIPTS = [
-    "collect/watch_host_infra.py",      # the infrastructure watcher (DNS/WHOIS/TLS at detection time)
-    "collect/watch_ct_benign.py",       # CT-sampled, age-matched benign arm (+ --stratum vn)
-    "collect/watch_urlscan_brands.py",  # brand-token urlscan feed (the live phishing channel)
-    "collect/watch_chongluadao.py",     # capture helpers watch_urlscan_brands imports
-    "audit/audit_p4_labels.py",         # the label gate + registry-wildcard probe
-    "assets/make_p4_assets.py",         # candidate population + T1, behind the trusted-label lock
-    "assets/make_p4_funnel.py",         # funnel + accrual tables/figure
-    "assets/make_p4b_assets.py",        # the data article's generated tables/figures
-    "lib/psl.py",                       # vendored from the URL-corpus repo (source of truth there)
-    "lib/vn_filter.py",                 # vendored: VN-targeting test + brand tokens
-    "lib/genfile.py",                   # atomic writer
-    "lib/figstyle.py",                  # house palette (installs the axis guard)
-    "lib/axguard.py",                   # refuses to write a figure that clips its data
-    "lib/paired_eval.py",               # wilson() used by build_population's tables
-    "lib/compphish_features.py",        # lexical channel make_p4_assets imports at module load
-    "lib/p4_outcome_gate.py",           # shared fail-closed unlock for every P4 outcome path
-    "assets/make_p4_perishability.py", # capture perishability (live vs backfill resolvability)
-    "audit/audit_infra_capture.py",     # its helper: the WHOIS-by-policy artefact, measured
-    "release/make_public_repo.py",      # this exporter
+    "studies/p4_infra/watch_host_infra.py",      # the infrastructure watcher (DNS/WHOIS/TLS at detection time)
+    "studies/p4_infra/watch_ct_benign.py",       # CT-sampled, age-matched benign arm (+ --stratum vn)
+    "core/collect/watch_urlscan_brands.py",  # brand-token urlscan feed (the live phishing channel)
+    "core/collect/watch_chongluadao.py",     # capture helpers watch_urlscan_brands imports
+    "studies/p4_infra/audit_p4_labels.py",         # the label gate + registry-wildcard probe
+    "studies/p4_infra/make_p4_assets.py",         # candidate population + T1, behind the trusted-label lock
+    "studies/p4_infra/make_p4_funnel.py",         # funnel + accrual tables/figure
+    "studies/p4_infra/make_p4b_assets.py",        # the data article's generated tables/figures
+    "core/lib/psl.py",                       # vendored from the URL-corpus repo (source of truth there)
+    "core/lib/vn_filter.py",                 # vendored: VN-targeting test + brand tokens
+    "core/lib/genfile.py",                   # atomic writer
+    "core/lib/figstyle.py",                  # house palette (installs the axis guard)
+    "core/lib/axguard.py",                   # refuses to write a figure that clips its data
+    "core/lib/paired_eval.py",               # wilson() used by build_population's tables
+    "core/lib/compphish_features.py",        # lexical channel make_p4_assets imports at module load
+    "core/lib/p4_outcome_gate.py",           # shared fail-closed unlock for every P4 outcome path
+    "studies/p4_infra/make_p4_perishability.py", # capture perishability (live vs backfill resolvability)
+    "studies/p4_infra/audit_infra_capture.py",     # its helper: the WHOIS-by-policy artefact, measured
+    "core/release/make_public_repo.py",      # this exporter
 ]
-# The cron wrappers ship under scripts/ops/ with their `scripts/<role>/x.py` calls rewritten to
-# the flat `scripts/x.py` (the only edit made to any exported file; see _flatten_sh).
+# Cron wrappers shipped under scripts/ops/ with paths rewritten for the flat layout.
 INFRA_OPS = ["host_infra_run.sh", "ct_benign_run.sh", "ct_benign_vn_run.sh",
              "urlscan_brands_run.sh", "rowcount_snapshot.sh",
-             # Ships with the wrappers because it is what tells a silent collector from a quiet day, and it
-             # checks that every module the wrappers import exists on the device -- the failure that cost
-             # this collection 28 hours on 2026-08-21
+             # Health monitor
              "jetson_health.sh"]
-# No test suite ships: the candidates either import a non-exported module or hard-code the
-# role-folder path the flat mirror does not have
 INFRA_TESTS: list[str] = []
-# The collector's own code and wrappers name the detection study they were built for, exactly
-# as the URL-benchmark scripts name theirs. Same rule: a reason per file, printed on every
-# export. The hand-written docs under data/docs/infra/ get NO waiver -- not even "companion"
+# Whitelist reasons for unreleased study mentions in infra profile code.
 INFRA_PROSE_WAIVERS = {
     "watch_host_infra.py": "one comment names the study whose benign arm the source map serves",
     "watch_ct_benign.py": "this IS that study's matched benign arm; its docstring names the design",
@@ -345,8 +318,6 @@ INFRA_PROSE_WAIVERS = {
     "make_p4_funnel.py": "names the paper folder its figure is written into",
     "make_p4b_assets.py": "names the data article's own paper folder (its output path)",
     "make_public_repo.py": "the export policy has to name which papers are held back",
-    # Named P4 until 2026-08-25, when the rotation's evidence moved to docs/decisions/ and
-    # the clause that stayed behind -- the one the claims suite parses -- named P4b instead.
     "ct_benign_run.sh": "the cadence clause names the data article whose 'four-hourly' the claims suite matches this comment against",
     "audit_infra_capture.py": "this IS that study's capture audit; it names the design it constrains",
     "make_p4_perishability.py": "names the paper folder its table is written into",
@@ -431,7 +402,7 @@ temporal split.
 - `docs/` — datasheet, column schema, data-source notes.
 - `docs/verify/` — the completed human label audit: time-stamped pre-specified codebook (with its amendment
   log), both annotators' independent sheets, the machine pass, and the arbitration record.
-- `tests/`, `configs/`, `Makefile`, `dvc.yaml` — reproducibility.
+- `tests/`, `configs/`, `Makefile` — reproducibility.
 
 ## Label audit (completed 2026-08-15)
 Two annotators independently re-checked a blinded, stratified 200-row sample against a four-way
@@ -467,6 +438,29 @@ make test         # unit tests
   composition estimate, and never as a substitute for the human audit.
 - `make_release.py` — build the citable open / gated release bundles.
 
+## Multi-protocol URL benchmark
+Seven tabular families plus a character-CNN, evaluated under a full-corpus random split, a
+phishing-temporal split on dated detections, and a four-corpus transfer matrix. `make benchmark`
+runs the three drivers; the remaining arms take their own flags.
+- `run_p2_benchmark.py` / `run_p2_temporal_strict.py` — the random and phishing-temporal
+  protocols; the temporal one carries the registrable-domain guard and the rolling origins.
+- `run_cross_dataset.py` — the four-corpus transfer matrix; `--drop` prunes the SHAP-named
+  artefact features and `--adapt coral` aligns second-order statistics to the unlabelled target.
+- `run_combined_training.py` — pooling three corpora against the held-out fourth.
+- `run_p2_stacking_baseline.py`, `run_p2_hpo.py`, `run_p2_charcnn.py`, `run_p2_fcts.py`,
+  `run_p2_residual_lambda.py`, `run_p2_drift_forecastability.py` — the ensemble, tuning,
+  string-reading, meta-learning and forecastability arms.
+- `audit_label_noise.py`, `audit_xdata_leakage.py`, `p2_dup_leakage.py`,
+  `p2_xdata_bootstrap.py`, `run_p2_source_probe.py` — the audits: confident-learning label
+  noise, the domain-disjoint guard on the transfer diagonal, how much of the random split is
+  memorisable, bootstrap CIs, and the benign-source swap.
+- `run_ml_label_sensitivity.py` — recall by provenance tier, the sensitivity analysis that
+  answers the corpus audit's 12.1% positive-label error rate. One script serves several
+  studies; run `--papers p2` for this one.
+- `make_p2_bench_assets.py`, `make_p2_shiftmatrix_figure.py` — the table and figure generators.
+  They write LaTeX into a manuscript tree that is not part of this repository; they ship so the
+  path from a stored result to a printed number is inspectable.
+
 ## Citation
 See `CITATION.cff`. Please cite the dataset DOI and credit the upstream sources
 (NCSC "Tin Nhiem Mang" and the Tranco list).
@@ -475,13 +469,17 @@ See `CITATION.cff`. Please cite the dataset DOI and credit the upstream sources
 Code: MIT (`LICENSE-CODE`). Dataset: CC BY 4.0 (`LICENSE`).
 """
 
-MAKEFILE = """.PHONY: install data url assets release verify clean
+MAKEFILE = """.PHONY: install data url benchmark assets release verify clean
 install:      ## install python deps
 \tpip install -r requirements.txt
 data:         ## build the URL dataset from data/raw
 \tpython scripts/normalize_merge.py --raw data/raw --out data/processed
 url:          ## train URL baselines (multi-seed + bootstrap CI)
 \tpython scripts/train_url_baseline.py --in data/processed/dataset_url.csv --out models/url_rf.joblib
+benchmark:    ## multi-protocol URL benchmark: both protocols, then the cross-corpus matrix
+\tpython scripts/run_p2_benchmark.py
+\tpython scripts/run_p2_temporal_strict.py
+\tpython scripts/run_cross_dataset.py
 assets:       ## regenerate the paper figure + tables from data
 \tpython scripts/make_p1_assets.py
 release:      ## package the citable open-tier release (PAGES=1 for the gated bundle)
@@ -494,8 +492,7 @@ clean:
 
 
 def _prose(path: str) -> str:
-    """Comments and docstrings only. The code is not what leaks -- a function named
-    make_p5_assets says nothing a reader could not infer from the repository layout."""
+    """Extract comments and docstrings from a Python source file."""
     src = open(path, encoding="utf-8").read()
     out = [m.group(1) for m in re.finditer(r"^\s*#\s?(.*)$", src, re.M)]
     try:
@@ -511,24 +508,19 @@ def _prose(path: str) -> str:
 
 
 def _flatten_sh(src: str) -> str:
-    """The wrappers call `scripts/<role>/x.py`; the mirror is flat. Nothing else is rewritten."""
-    return re.sub(r"scripts/(collect|audit|assets|lib|dataset|train|release)/", "scripts/", src)
+    """Rewrite script subfolder paths to the flattened mirror layout."""
+    src = re.sub(r"scripts/ops/", "scripts/ops/", src)
+    src = re.sub(r'\(dirname "\$0"\)/\.\./\.\./\.\.', r'(dirname "$0")/../..', src)
+    return re.sub(r"scripts/(?:core|studies|collect|audit|assets|lib|dataset|train|release)(?:/[a-zA-Z0-9_]+)*/", "scripts/", src)
 
 
 def _drop_unshipped_doc_links(src: str, shipped: set[str]) -> str:
-    """Stop the exported copy from naming a design note this mirror does not carry.
-
-    Added 2026-09-02 with the XAI study's eleven scripts. Their headers each end on a line like
-    "The three measurements and the four additions: docs/design-notes/run-p6-suffix-blindspot.md",
-    and the link gate is right to refuse them: in the mirror that path is a promise to a file
-    that is not there. Deleting the line from the repository would have satisfied the gate by
-    destroying a pointer that is useful HERE, so the rewrite happens on export instead -- the
-    same principle as the flattening above. The sentence survives; only the dead path goes.
-    """
+    """Rewrite doc pointers to design notes not shipped in the public mirror."""
     def sub(m):
         return m.group(0) if os.path.basename(m.group(0)) in shipped else \
             "kept in the development repository, not shipped in this mirror"
     return re.sub(r"docs/(?:design-notes|decisions)/[\w.-]+\.md", sub, src)
+
 
 
 def _sh_prose(path: str) -> str:
@@ -697,7 +689,7 @@ def build_infra(out: str) -> None:
                 _flatten_sh(open(src, encoding="utf-8").read()))
             shutil.copymode(src, dst)
     for sh in INFRA_OPS:
-        src = os.path.join("scripts", "ops", sh)
+        src = os.path.join("scripts", "core", "ops", sh)
         if os.path.exists(src):
             txt = _flatten_sh(open(src, encoding="utf-8").read())
             dst = os.path.join(out, "scripts", "ops", sh)
@@ -711,7 +703,8 @@ def build_infra(out: str) -> None:
     for src_name, dst_rel in INFRA_DOCS:
         src = os.path.join(INFRA_DOCS_FROM, src_name)
         if os.path.exists(src):
-            shutil.copy2(src, os.path.join(out, dst_rel))
+            dst = os.path.join(out, dst_rel)
+            open(dst, "w", encoding="utf-8").write(_flatten_sh(open(src, encoding="utf-8").read()))
         else:
             missing.append(src)
     if missing:
@@ -800,8 +793,11 @@ def main():
         if os.path.isdir(d):
             shutil.copytree(d, os.path.join(args.out, d), ignore=ignore)
     for f in COPY_FILES:
-        if os.path.exists(f):
-            shutil.copy2(f, os.path.join(args.out, f))
+        if not os.path.exists(f):
+            raise SystemExit(f"[!] COPY_FILES names {f}, which does not exist. Either restore it"
+                             " or drop it from the list -- skipping in silence is how the mirror"
+                             " kept shipping a dvc.yaml this repo had already deleted.")
+        shutil.copy2(f, os.path.join(args.out, f))
 
     # the citation ships only when it describes the published deposit (see PUBLISHED_DOI)
     local_cff = open("CITATION.cff", encoding="utf-8").read() if os.path.exists("CITATION.cff") else ""
@@ -840,16 +836,38 @@ def main():
     for fn in INCLUDE_VERIFY:
         src = os.path.join(VERIFY_FROM, fn)
         if os.path.exists(src):
-            shutil.copy2(src, os.path.join(args.out, "docs", "verify", fn))
+            dst = os.path.join(args.out, "docs", "verify", fn)
+            if fn.endswith(".md"):
+                open(dst, "w", encoding="utf-8").write(_flatten_sh(open(src, encoding="utf-8").read()))
+                shutil.copymode(src, dst)
+            else:
+                shutil.copy2(src, dst)
     for src, name in INCLUDE_AUDITS:
         if os.path.exists(src):
-            shutil.copy2(src, os.path.join(args.out, "docs", "verify", name))
+            dst = os.path.join(args.out, "docs", "verify", name)
+            # Normalise CRLF to LF on the way out. Two of these are written by a csv.writer that
+            # emits \r\n, so a byte copy made every line of feed_snapshot_20260812.csv (1,116) and
+            # p3_paraphrase_lures.csv (387) differ from the published copy while the content was
+            # identical -- a 3,000-line diff on a public repo that says nothing. The mirror's line
+            # endings should depend on the mirror, not on how the private file happened to be
+            # written. Binary-ish payloads are copied untouched.
+            if name.endswith((".csv", ".json", ".md", ".txt")):
+                data = open(src, "rb").read().replace(b"\r\n", b"\n")
+                open(dst, "wb").write(data)
+                shutil.copystat(src, dst)
+            else:
+                shutil.copy2(src, dst)
 
     os.makedirs(os.path.join(args.out, "docs"), exist_ok=True)
     for fn in INCLUDE_DOCS:
         src = os.path.join(DOCS_FROM, fn)
         if os.path.exists(src):
-            shutil.copy2(src, os.path.join(args.out, "docs", fn))
+            dst = os.path.join(args.out, "docs", fn)
+            if fn.endswith(".md"):
+                open(dst, "w", encoding="utf-8").write(_flatten_sh(open(src, encoding="utf-8").read()))
+                shutil.copymode(src, dst)
+            else:
+                shutil.copy2(src, dst)
 
     os.makedirs(os.path.join(args.out, "docs", "decisions"), exist_ok=True)
     for rel in DECISION_DOCS:
@@ -890,11 +908,14 @@ def main():
     # CLOSURE ASSERTION (see _closure_gate). Nested imports count: test_pipeline.py imports its
     # collection modules inside test bodies.
     exported = {os.path.basename(s) for s in INCLUDE_SCRIPTS}
-    # Three exemptions, all on paths the mirror cannot reach: hpo_gwo backs an unreleased study's
+    # Five exemptions, all on paths the mirror cannot reach: hpo_gwo backs an unreleased study's
     # --tune flag; p3_jaccard_check is reached only by make_release after inputs absent here, so
     # it aborts before the import; _path is the bootstrap every header imports inside
-    # try/except ImportError -- falling back IS the flat-mirror design
-    private = _private_scripts(exported) - {"hpo_gwo", "p3_jaccard_check", "_path"}
+    # try/except ImportError -- falling back IS the flat-mirror design; and make_p5_assets and
+    # retrain_drift are imported inside run_ml_label_sensitivity's p5() alone, so the p2, p3 and
+    # p6 arms -- the three this mirror exists to reproduce -- never reach them.
+    private = _private_scripts(exported) - {"hpo_gwo", "p3_jaccard_check", "_path",
+                                            "make_p5_assets", "retrain_drift"}
     files = [("scripts", fn) for fn in sorted(exported)] + [("tests", t) for t in INCLUDE_TESTS]
     _closure_gate(args.out, private, files)
 
