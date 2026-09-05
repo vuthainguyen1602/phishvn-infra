@@ -2,7 +2,7 @@
 """
 watch_chongluadao.py — Crawl-AT-DETECTION-TIME watcher for the current ChongLuaDao denylist.
 
-Motivation (see the P1b data-quality finding): retrospectively crawling an aged blacklist yields
+Motivation (see the URL corpus' data-quality finding): retrospectively crawling an aged blacklist yields
 mostly mislabelled survivors, because genuine phishing is taken down within days. The fix is to
 capture each domain WHILE IT IS STILL LIVE. This watcher does exactly that:
 

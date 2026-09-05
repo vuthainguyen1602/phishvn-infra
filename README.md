@@ -174,5 +174,5 @@ repositories: `psl.py` (registrable-domain folding with the PSL private section)
 (the Vietnamese-targeting test and brand tokens) and the blocklist/allow-list loaders inside
 `audit_capture_labels.py` and `watch_urlscan_brands.py`. The URL corpus repository is the source of
 truth for those modules; fixes land there first and are re-vendored here by re-running the
-exporter (`make_public_repo.py --profile infra`). This repository adds nothing to the URL corpus
+exporter, which lives in that repository and is not part of this one. This repository adds nothing to the URL corpus
 and the URL corpus repository does not contain the infrastructure collectors.

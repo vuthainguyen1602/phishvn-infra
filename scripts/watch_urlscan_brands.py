@@ -5,7 +5,7 @@ watch_urlscan_brands.py — Live feed of Vietnamese brand-impersonation phishing
 Replaces the SOURCE behind watch_chongluadao.py, not the parser: its mirror (urls.txt) last moved
 2024-05-16 and the site went client-side-rendered, so ~83% of what it scans is already dead.
 Searches `page.domain:*<brand>*` — Vietnamese phishing puts the domestic brand in the hostname;
-`page.country:VN` misses almost all of it since hosting is abroad (P9: only 2.7% on .vn).
+`page.country:VN` misses almost all of it since hosting is abroad (only 2.7% is on .vn).
 Cheap because a search hit carries the scan UUID (download the existing capture: no scan quota,
 no 45 s wait) and the infra fields (ASN, server, TLS/domain age, HTTP status) come with it.
 

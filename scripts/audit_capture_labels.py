@@ -319,8 +319,8 @@ def content_evidence() -> dict[str, dict[str, bool]]:
 
     Blocklist corroboration is structurally unavailable for the live stratum (all three lists
     stopped publishing before the watcher started), so content is the only positive evidence that
-    keeps working. The language test is `vn_filter.is_vietnamese_text`, the same gate as P1b's
-    content manifest, so the two papers cannot disagree about what "Vietnamese" means. A brand-token
+    keeps working. The language test is `vn_filter.is_vietnamese_text`, the same gate as the URL
+    corpus' content manifest, so the two cannot disagree about what "Vietnamese" means. A brand-token
     hit rendering no Vietnamese is substring collision or an out-of-scope global site. NEITHER test
     separates a brand's own portal from an impersonation, so exclusions run first and both are
     evidence, not proof."""
@@ -342,7 +342,7 @@ def content_evidence() -> dict[str, dict[str, bool]]:
         with open(path, encoding="utf-8", errors="ignore") as f:
             html = f.read()
         # visible text, not the raw file: the density threshold cannot survive markup dilution, and scoring
-        # html here is what made this gate disagree with P1b's on 73 domains.
+        # html here is what made this gate disagree with the corpus' own on 73 domains.
         ev = {"renders_vietnamese": is_vietnamese_text(visible_text(html)),
               "credential_form": bool(CRED_INPUT.search(html))}
         # a domain may have several captures; any capture carrying the evidence carries it

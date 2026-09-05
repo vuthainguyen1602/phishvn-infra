@@ -19,7 +19,7 @@ re-derives every count from the CSVs and forbids evaluation vocabulary in the bu
 Reads  data/raw/host_infra/host_infra.csv, data/processed/infra/funnel.csv, accrual.csv,
        label_audit.csv and wildcard_probe.csv (both written by build_population),
        data/interim/p4_content_map.csv, data/raw/ct_benign{,_vn}/seen_domains.txt (where
-       present), data/processed/dataset_url.csv (the P1 corpus, for the overlap count).
+       present), data/processed/dataset_url.csv (the URL corpus, for the overlap count).
 Writes papers/P4b_infra_data/sections/{tab_files,tab_sources,gen_counts,gen_macros,
        tab_funnel,tab_verdicts,tab_timestamps,tab_availability,tab_benign_age,gen_perish}.tex
        and papers/P4b_infra_data/figures/{cert_age_by_arm,funnel_accrual_p4b}.pdf. The accrual
@@ -321,8 +321,8 @@ def write_macros(keys: dict, extra: dict[str, str]) -> dict[str, str]:
 
 
 def p1_overlap(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
-    """Registrable domains the capture table shares with the PhishVN URL corpus (P1), raw and
-    per conditioned arm. The comparator overlaps by design (it re-measures P1's trust-registry
+    """Registrable domains the capture table shares with the PhishVN URL corpus, raw and
+    per conditioned arm. The comparator overlaps by design (it re-measures that corpus' trust-registry
     benign source); the phishing arm is expected to be disjoint because the live stratum begins
     after that corpus was frozen. Both are counted, not assumed."""
     if not os.path.exists(P1_URL_CSV):
@@ -334,7 +334,7 @@ def p1_overlap(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
     for arm, name in (("phish", "Phish"), ("benign", "Benign"), (COMPARATOR_ARM, "Comparator")):
         out[f"PbPOneOverlap{name}"] = fmt(len(p1 & set(pop.loc[pop["arm"] == arm,
                                                                  "registered_domain"])))
-    print("[i] P1 overlap: " + ", ".join(f"{k}={v}" for k, v in out.items()))
+    print("[i] URL-corpus overlap: " + ", ".join(f"{k}={v}" for k, v in out.items()))
     return out
 
 

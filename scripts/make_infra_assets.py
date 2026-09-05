@@ -16,7 +16,7 @@ no phishing — of 32 conditioned .vn "phishing" domains, zero blocklist-corrobo
 verifiably legitimate (bidv.vn, viettelpost.vn, sepay.vn...). Mechanism
 (watch_urlscan_brands.py:23): urlscan's free tier cannot filter maliciousness, so label=phish means
 only "hostname contains a Vietnamese brand token" — worst on .vn, since VN phishing is ~2.7% .vn
-(P9) while VN companies are there. Repair: drop the TLD cut, let audit_capture_labels.audit() decide.
+while VN companies are there. Repair: drop the TLD cut, let audit_capture_labels.audit() decide.
 
 Population (§5, revised): phishing = live stratum only (first_detected >= 2026-07-30), admitted on
 a corroborated / credential_form / content_confirmed / vn_lexical verdict; uncorroborated and
