@@ -41,11 +41,15 @@ file moves the admitted count by more than a handful.
 ## Tin Nhiem Mang trusted-org registry
 
 `data/raw/tinnhiem_org/*.csv`, and `data/processed/brand_tokens.json` derived from it by
-`build_brand_tokens.py` (1,798 tokens). Used only to exclude, never to confirm.
+`build_brand_tokens.py` (1,798 tokens). Feeds one clause of the allowlist, used only to exclude
+and never to confirm.
 
-Not redistributed: it is a Vietnamese national registry's own publication, and republishing a
-government certification list inside a research deposit is a permission question we have not
-asked. The collector that fetches it ships, so the list can be rebuilt at its source.
+It changes nothing here, and that was measured rather than assumed: building the population with
+this file present and absent admits 224 candidates either way. The allowlist's other clauses
+already exclude everything it would have. So its absence from the deposit costs a reader nothing,
+and no permission needs seeking to publish a national registry's certification list inside a
+research deposit. The collector that fetches it ships, so anyone wanting the file can rebuild it
+at source.
 
 ## Feed allowlists and seen-domain sets
 
