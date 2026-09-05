@@ -347,7 +347,7 @@ population:   ## funnel + conditioned population (refuses to fit models below th
 assets:       ## the data article's tables and figures
 \tpython scripts/make_capture_funnel.py && python scripts/make_infra_data_assets.py
 clean:
-\trm -rf data/processed/p4/p4_*.csv
+\trm -rf data/processed/infra/p4_*.csv
 """
 
 INFRA_DATA_README = """# Data

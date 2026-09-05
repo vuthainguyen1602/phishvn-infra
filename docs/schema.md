@@ -86,7 +86,7 @@ collected; the columns hold dates and registrar names only.
 > are `phish`; `ct_benign`, `ct_benign_vn` and `tinnhiem_benign` are `benign` — so `label` and
 > `source` are perfectly confounded in this file. A model trained on `label` here can reach a
 > high score by learning **which feed a row came from**, which is not the same as learning what
-> phishing looks like. Use `p4_infra_dataset.csv` (which carries the gate `verdict` and the
+> phishing looks like. Use `infra_dataset.csv` (which carries the gate `verdict` and the
 > `arm` the study models) or join `label_audit.csv`; if you must use this file directly, hold
 > out a whole source rather than a random split.
 >
@@ -102,7 +102,7 @@ collected; the columns hold dates and registrar names only.
 
 ## Derived files
 
-- `p4_infra_dataset.csv`: the conditioned population, one row per registrable domain per arm,
+- `infra_dataset.csv`: the conditioned population, one row per registrable domain per arm,
   with `arm` and the gate `verdict`; produced by `make_infra_assets.py`.
 - `funnel.csv`: `stage, surviving, removed, note`; `accrual.csv`: `date, cumulative` admitted phishing
   registrable domains by detection day; both produced by `make_capture_funnel.py`.

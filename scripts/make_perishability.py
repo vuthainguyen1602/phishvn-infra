@@ -34,7 +34,7 @@ registered it (98.6% of 2,147 live hosts before the screen, 95.4% of 668 after).
 
     python scripts/make_perishability.py
 
-Writes data/processed/p4/p4_perishability.csv, data/processed/p4/p4_retry.csv,
+Writes data/processed/infra/perishability.csv, data/processed/infra/retry.csv,
 papers/P4_infra/figures/perishability.pdf, papers/P4_infra/sections/gen_perishability.tex and
 papers/P4_infra/sections/gen_perishability_macros.tex (the retry/strata counts as macros).
 """
@@ -415,8 +415,8 @@ def main() -> int:
     tail = tail_concentration(recs)
 
     os.makedirs(PROC, exist_ok=True)
-    write_csv(os.path.join(PROC, "p4", "p4_perishability.csv"), bins)
-    write_csv(os.path.join(PROC, "p4", "p4_retry.csv"), retry)
+    write_csv(os.path.join(PROC, "infra", "perishability.csv"), bins)
+    write_csv(os.path.join(PROC, "infra", "retry.csv"), retry)
     make_figure(recs, bins, retry, tail)
     make_tex(recs, bins, retry, tail, n_wild)
 

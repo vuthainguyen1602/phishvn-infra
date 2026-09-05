@@ -16,8 +16,8 @@ re-derives every count from the CSVs and forbids evaluation vocabulary in the bu
 
     python scripts/make_infra_data_assets.py
 
-Reads  data/raw/host_infra/host_infra.csv, data/processed/p4/p4_funnel.csv, p4_accrual.csv,
-       p4_label_audit.csv and p4_wildcard_probe.csv (both written by build_population),
+Reads  data/raw/host_infra/host_infra.csv, data/processed/infra/funnel.csv, accrual.csv,
+       label_audit.csv and wildcard_probe.csv (both written by build_population),
        data/interim/p4_content_map.csv, data/raw/ct_benign{,_vn}/seen_domains.txt (where
        present), data/processed/dataset_url.csv (the P1 corpus, for the overlap count).
 Writes papers/P4b_infra_data/sections/{tab_files,tab_sources,gen_counts,gen_macros,
@@ -60,13 +60,13 @@ SEC = os.path.join(ROOT, "papers", "P4b_infra_data", "sections")
 FIG = os.path.join(ROOT, "papers", "P4b_infra_data", "figures")
 PROC = os.path.join(ROOT, "data", "processed")
 INTERIM = os.path.join(ROOT, "data", "interim")
-FUNNEL_CSV = os.path.join(PROC, "p4", "p4_funnel.csv")
-ACCRUAL_CSV = os.path.join(PROC, "p4", "p4_accrual.csv")
-DATASET_CSV = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
+FUNNEL_CSV = os.path.join(PROC, "infra", "funnel.csv")
+ACCRUAL_CSV = os.path.join(PROC, "infra", "accrual.csv")
+DATASET_CSV = os.path.join(PROC, "infra", "infra_dataset.csv")
 # Written by build_population (the per-candidate verdict table, with the funnel stage that removed
 # each) and by the audit's wildcard probe; both are inputs here, never recomputed.
-LABEL_AUDIT_CSV = os.path.join(PROC, "p4", "p4_label_audit.csv")
-PROBE_CSV = os.path.join(PROC, "p4", "p4_wildcard_probe.csv")
+LABEL_AUDIT_CSV = os.path.join(PROC, "infra", "label_audit.csv")
+PROBE_CSV = os.path.join(PROC, "infra", "wildcard_probe.csv")
 CONTENT_MAP_CSV = os.path.join(INTERIM, "p4_content_map.csv")
 VN_SUPP_CSV = os.path.join(ROOT, "data", "raw", "ct_benign_vn", "detections.csv")
 P1_URL_CSV = os.path.join(PROC, "dataset_url.csv")
@@ -105,7 +105,7 @@ DEPOSIT = [
     ("MANIFEST.txt", None, "", "SHA-256 checksum and byte size of every file"),
     ("data/host_infra.csv", os.path.join(ROOT, INFRA), "rows",
      "Every capture row, all sources (25 columns)"),
-    ("data/p4_infra_dataset.csv", DATASET_CSV, "rows",
+    ("data/infra_dataset.csv", DATASET_CSV, "rows",
      "Conditioned population, arm and verdict (15 columns)"),
     ("data/funnel.csv", FUNNEL_CSV, "rows", "Phishing-arm funnel: stage, surviving, removed"),
     ("data/accrual.csv", ACCRUAL_CSV, "rows", "Cumulative admitted domains by detection day"),
@@ -445,7 +445,7 @@ def write_availability(pop: pd.DataFrame) -> None:
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize\n"
               "\\caption{Share of conditioned registrable domains, per arm, with each derived "
-              "field of \\nolinkurl{p4_infra_dataset.csv} populated.}\n"
+              "field of \\nolinkurl{infra_dataset.csv} populated.}\n"
               "\\label{tab:availability}\n"
               "\\begin{tabular}{lccc}\\toprule\n"
               "Field & " + " & ".join(h for _, h in ARM_COLUMNS) + " \\\\ \\midrule\n")
@@ -664,7 +664,7 @@ def main() -> int:
                   file=sys.stderr)
             return 1
     df = pd.read_csv(INFRA, low_memory=False)
-    pop, funnel = build_population()   # also writes p4_label_audit.csv and p4_wildcard_probe.csv
+    pop, funnel = build_population()   # also writes label_audit.csv and wildcard_probe.csv
     # The funnel and accrual CSVs are rewritten from THIS population with the companion's own
     # functions: the wildcard screen live-resolves a candidate that never recorded an address, so two
     # builds minutes apart can differ by a domain, and every number here must come from one build.

@@ -25,7 +25,7 @@ disagree is the honest uncertainty.
 
     python scripts/make_capture_funnel.py
 
-Writes data/processed/p4/p4_funnel.csv, data/processed/p4/p4_accrual.csv,
+Writes data/processed/infra/funnel.csv, data/processed/infra/accrual.csv,
 papers/P4_infra/figures/funnel_accrual.pdf and papers/P4_infra/sections/gen_funnel.tex.
 """
 from __future__ import annotations
@@ -259,7 +259,7 @@ def _vn_phish_count() -> int:
     """`.vn` names in the admitted phishing arm. Hand-typed as 33 until 2026-08-24, when the
     sync moved it to 35 and the sentence quoting it stayed put."""
     import pandas as _pd
-    path = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
+    path = os.path.join(PROC, "infra", "infra_dataset.csv")
     if not os.path.exists(path):
         return 0
     d = _pd.read_csv(path, low_memory=False)
@@ -272,7 +272,7 @@ def _benign_vn_count() -> int:
     supplement landed, so the discussion paragraph about empty `.vn` cells reads it from here
     rather than asserting a number that has since stopped being true."""
     import pandas as _pd
-    path = os.path.join(PROC, "p4", "p4_infra_dataset.csv")
+    path = os.path.join(PROC, "infra", "infra_dataset.csv")
     if not os.path.exists(path):
         return 0
     d = _pd.read_csv(path, low_memory=False)
@@ -292,8 +292,8 @@ def main() -> int:
     proj = {"all": {"rate": r_all, "date": d_all}, "trailing": {"rate": r_tr, "date": d_tr}}
 
     os.makedirs(PROC, exist_ok=True)
-    write_csv(os.path.join(PROC, "p4", "p4_funnel.csv"), fun)
-    write_csv(os.path.join(PROC, "p4", "p4_accrual.csv"), acc)
+    write_csv(os.path.join(PROC, "infra", "funnel.csv"), fun)
+    write_csv(os.path.join(PROC, "infra", "accrual.csv"), acc)
     make_figure(fun, acc, proj)
     make_tex(fun, acc, proj)
     print(f"[i] funnel {fun[0]['surviving']:,} -> {fun[-1]['surviving']}; "

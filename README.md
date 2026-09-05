@@ -31,7 +31,7 @@ population, the freeze rule and the analysis trigger is published with that arti
 
 **It is perfectly confounded with `source`.** Every feed contributes to exactly one class, so a
 model trained on `label` in this file can score well by learning which feed a row came from. Use
-`p4_infra_dataset.csv`, which carries the gate `verdict` and the `arm` the study models, or join
+`infra_dataset.csv`, which carries the gate `verdict` and the `arm` the study models, or join
 `label_audit.csv`. If you use the raw table anyway, hold out a whole source rather than a random
 split.
 

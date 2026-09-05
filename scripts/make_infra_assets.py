@@ -58,8 +58,8 @@ from audit_capture_labels import (audit, is_hosted_subdomain,
 from outcome_gate import OUTCOME_LABELS, trusted_positive_population
 
 INFRA = "data/raw/host_infra/host_infra.csv"
-DATASET = "data/processed/p4/p4_infra_dataset.csv"
-LABEL_AUDIT = "data/processed/p4/p4_label_audit.csv"
+DATASET = "data/processed/infra/infra_dataset.csv"
+LABEL_AUDIT = "data/processed/infra/label_audit.csv"
 SECTIONS = "papers/P4_infra/sections"
 SMOKE_DIR = "data/interim/p4_smoke"
 CONTENT_MAP = "data/interim/p4_content_map.csv"
@@ -247,7 +247,7 @@ def write_label_audit(ph_live: pd.DataFrame, audit_tab: pd.DataFrame,
     phishing registrable domain, with the stage at which the protocol removed it (or
     `admitted`). Output only: every value is computed by build_population already; writing it
     makes the funnel auditable row by row. The row count and the stage counts are asserted
-    against the funnel so the file can never disagree with tab_audit / p4_funnel.csv."""
+    against the funnel so the file can never disagree with tab_audit / funnel.csv."""
     first = (ph_live.sort_values("first_detected")
              .groupby("registered_domain")
              .agg(source=("source", "first"), first_detected=("first_detected", "first")))

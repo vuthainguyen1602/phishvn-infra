@@ -13,7 +13,7 @@ import os
 import pandas as pd
 
 
-OUTCOME_LABELS = "data/processed/p4/p4_outcome_labels.csv"
+OUTCOME_LABELS = "data/processed/infra/p4_outcome_labels.csv"
 REQUIRED_COLUMNS = (
     "registered_domain", "annotator_a", "annotator_b", "adjudicated_label",
     "positive_evidence", "blinded_to_infrastructure", "blinded_to_model",
