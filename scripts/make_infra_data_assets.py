@@ -118,6 +118,16 @@ DEPOSIT = [
     # where the paper reports 215. Two boolean flags per domain, no page content.
     ("data/content_map.csv", CONTENT_MAP_CSV, "rows",
      "Rendered-page evidence per candidate: renders_vietnamese, credential_form"),
+    # The validation outputs the paper prints tables from. Ours, computed from the files above,
+    # so they carry no third-party terms; deposited because a table nobody can re-derive is a
+    # claim, not a record. ip_asn.csv is deliberately NOT here: it caches a third-party routing
+    # lookup, and enrich_ip_asn.py rebuilds it from the A records in host_infra.csv.
+    ("data/capture_lag.csv", os.path.join(PROC, "infra", "capture_lag.csv"), "rows",
+     "Detection-to-capture lag by arm, stratum and source"),
+    ("data/validation.csv", os.path.join(PROC, "infra", "validation.csv"), "rows",
+     "Field completeness, capture success chain, consistency checks"),
+    ("data/hosting_class.csv", os.path.join(PROC, "infra", "hosting_class.csv"), "rows",
+     "Per hostname: registered / platform-hosted / uncertain, and the rule that decided"),
     ("data/ct_benign_seen.txt", os.path.join(ROOT, "data", "raw", "ct_benign", "seen_domains.txt"),
      "lines", "Matched-arm sampler seen-set"),
     ("data/ct_benign_vn_seen.txt",
@@ -165,7 +175,10 @@ def write_files_table() -> dict[str, int]:
             n = n or 0
             counts[path] = n
             size = f"{fmt(n)} {unit}"
-        out.write(f"\\quad{tex_path(path)} & {size} & {what} \\\\\n")
+        # Descriptions are prose typed by hand into DEPOSIT above, so an underscore in one
+        # reaches LaTeX as a subscript and stops the build. Escaped here rather than in each
+        # entry: whoever adds the next row should not have to remember.
+        out.write(f"\\quad{tex_path(path)} & {size} & {what.replace('_', chr(92) + '_')} \\\\\n")
     out.write("\\bottomrule\n\\end{tabular}\n\\end{table}\n")
     write_generated(os.path.join(SEC, "tab_files.tex"), out.getvalue())
     return counts
