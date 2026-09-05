@@ -53,7 +53,7 @@ except ImportError:  # flat public-mirror layout
 # BELOW the bootstrap, not above it: psl.py lives in scripts/, which is only on sys.path once
 # add_script_dirs() has run. Imported above, this module could still be IMPORTED (watch_ct_benign,
 # make_infra_assets and four others bootstrap before importing it, so their path is already set) but
-# could not be RUN -- and running it is how the gate is audited and how p4_content_map.csv is
+# could not be RUN -- and running it is how the gate is audited and how content_map.csv is
 # exported on the collector. It was that way from 2026-08-28 (435e6f9) to 2026-08-31, three days
 # in which every importer worked and `python3 scripts/audit_capture_labels.py` raised
 # ModuleNotFoundError on both machines.

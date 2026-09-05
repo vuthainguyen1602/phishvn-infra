@@ -62,7 +62,7 @@ DATASET = "data/processed/infra/infra_dataset.csv"
 LABEL_AUDIT = "data/processed/infra/label_audit.csv"
 SECTIONS = "papers/P4_infra/sections"
 SMOKE_DIR = "data/interim/p4_smoke"
-CONTENT_MAP = "data/interim/p4_content_map.csv"
+CONTENT_MAP = "data/interim/content_map.csv"
 WATCHER_START = pd.Timestamp("2026-07-30")
 # The collector's clock. Every duration is taken in ONE zone (2026-08-21 fix): `captured_at` and
 # collector-stamped `first_detected` are naive local, CT rows' `first_detected` is naive UTC,

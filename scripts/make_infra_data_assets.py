@@ -18,7 +18,7 @@ re-derives every count from the CSVs and forbids evaluation vocabulary in the bu
 
 Reads  data/raw/host_infra/host_infra.csv, data/processed/infra/funnel.csv, accrual.csv,
        label_audit.csv and wildcard_probe.csv (both written by build_population),
-       data/interim/p4_content_map.csv, data/raw/ct_benign{,_vn}/seen_domains.txt (where
+       data/interim/content_map.csv, data/raw/ct_benign{,_vn}/seen_domains.txt (where
        present), data/processed/dataset_url.csv (the URL corpus, for the overlap count).
 Writes papers/P4b_infra_data/sections/{tab_files,tab_sources,gen_counts,gen_macros,
        tab_funnel,tab_verdicts,tab_timestamps,tab_availability,tab_benign_age,gen_perish}.tex
@@ -67,7 +67,7 @@ DATASET_CSV = os.path.join(PROC, "infra", "infra_dataset.csv")
 # each) and by the audit's wildcard probe; both are inputs here, never recomputed.
 LABEL_AUDIT_CSV = os.path.join(PROC, "infra", "label_audit.csv")
 PROBE_CSV = os.path.join(PROC, "infra", "wildcard_probe.csv")
-CONTENT_MAP_CSV = os.path.join(INTERIM, "p4_content_map.csv")
+CONTENT_MAP_CSV = os.path.join(INTERIM, "content_map.csv")
 VN_SUPP_CSV = os.path.join(ROOT, "data", "raw", "ct_benign_vn", "detections.csv")
 P1_URL_CSV = os.path.join(PROC, "dataset_url.csv")
 VN_SUPP_START = "2026-08-21"   # the amendment that registered the .vn supplement (PREREG)
@@ -113,6 +113,11 @@ DEPOSIT = [
      "Verdict, evidence flags, removal stage per candidate"),
     ("data/wildcard_probe.csv", PROBE_CSV, "rows",
      "Wildcard probe: suffix, probe name, date, answers"),
+    # The abstract has always said this ships. It did not, and without it the label gate cannot
+    # award content_confirmed, so a reader reproducing the population got 107 admitted domains
+    # where the paper reports 215. Two boolean flags per domain, no page content.
+    ("data/content_map.csv", CONTENT_MAP_CSV, "rows",
+     "Rendered-page evidence per candidate: renders_vietnamese, credential_form"),
     ("data/ct_benign_seen.txt", os.path.join(ROOT, "data", "raw", "ct_benign", "seen_domains.txt"),
      "lines", "Matched-arm sampler seen-set"),
     ("data/ct_benign_vn_seen.txt",
