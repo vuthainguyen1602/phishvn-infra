@@ -1,4 +1,4 @@
-.PHONY: install infra benign benign-vn audit population assets clean
+.PHONY: install infra benign benign-vn audit population validate perish assets clean
 install:      ## install python deps
 	pip install -r requirements.txt
 infra:        ## one tick of the infrastructure watcher (tails data/raw/*/detections.csv)
@@ -11,6 +11,11 @@ audit:        ## label gate over the live-stratum phishing arm
 	python scripts/audit_capture_labels.py --live
 population:   ## funnel + conditioned population (refuses to fit models below the registered trigger)
 	python scripts/make_infra_assets.py
+validate:     ## capture lag, field completeness, hosting class, AS join (reads the cached ip_asn.csv)
+	python scripts/make_capture_lag.py && python scripts/validate_infra_dataset.py \
+	  && python scripts/classify_hosting.py && python scripts/enrich_ip_asn.py --offline
+perish:       ## capture perishability: live vs backfill resolvability, retry outcomes
+	python scripts/make_perishability.py
 assets:       ## the data article's tables and figures
 	python scripts/make_capture_funnel.py && python scripts/make_infra_data_assets.py
 clean:
