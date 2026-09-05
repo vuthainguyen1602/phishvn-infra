@@ -94,13 +94,18 @@ echo
 echo "collector imports present on the device:"
 cd "$HOME/PhishVN"
 missing=0
-files=$(cat scripts/ops/*.sh scripts/ops/*.sh scripts/*/run_*.sh 2>/dev/null |
+# Where a module lives is a moving target: the tree was flat, then role-based, then core/ plus
+# studies/. Globs pinned to a depth silently stopped matching after each move and reported a
+# present module as MISSING. Search instead, so the next rearrangement costs nothing here.
+_find_module() { find scripts -name "$1.py" -not -path "*__pycache__*" 2>/dev/null | head -1; }
+
+files=$(cat scripts/ops/*.sh scripts/ops/*.sh scripts/*/run_*.sh scripts/*/run_*.sh 2>/dev/null |
         grep -hoE 'scripts/[a-z_/]+\.py' | sort -u)
 [ -z "$files" ] && echo "  (no wrapper scripts on this host — nothing to check)"
 for _ in 1 2; do
   for f in $files; do
     for m in $(grep -hoE '^(from [A-Za-z_][A-Za-z0-9_]* import|import [A-Za-z_][A-Za-z0-9_]*( |$))' "$f" | awk '{print $2}' | sort -u); do
-      for c in "scripts/$m.py" "scripts/$m.py" scripts/*/"$m.py" scripts/*/"$m.py" scripts/*/"$m.py" scripts/*/"$m.py" "scripts/$m.py"; do
+      for c in $(_find_module "$m"); do
         [ -f "$c" ] && files="$files $c"
       done
     done
@@ -111,7 +116,7 @@ for f in $files; do
   for m in $(grep -hoE '^(from [A-Za-z_][A-Za-z0-9_]* import|import [A-Za-z_][A-Za-z0-9_]*( |$))' "$f" | awk '{print $2}' | sort -u); do
     python3 -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$m') else 1)" 2>/dev/null && continue
     found=0
-    for c in "scripts/$m.py" "scripts/$m.py" "scripts/$m.py" scripts/*/"$m.py" scripts/*/"$m.py" scripts/*/"$m.py" scripts/*/"$m.py" "scripts/$m/__init__.py"; do
+    for c in $(_find_module "$m"); do
       [ -f "$c" ] && found=1 && break
     done
     [ "$found" = 1 ] && continue
@@ -122,7 +127,7 @@ for f in $files; do
   while read -r mod names; do
     [ -n "$mod" ] && [ -n "$names" ] || continue
     src=""
-    for c in "scripts/$mod.py" "scripts/$mod.py" scripts/*/"$mod.py" scripts/*/"$mod.py"; do
+    for c in $(_find_module "$mod"); do
       [ -f "$c" ] && src="$c" && break
     done
     [ -n "$src" ] || continue          # third-party: pip owns its contents, not this check
