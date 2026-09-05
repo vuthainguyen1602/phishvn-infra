@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-watch_ct_benign.py — the TLD- and age-matched BENIGN arm for P4, sampled from raw CT logs.
+watch_ct_benign.py — the TLD- and age-matched BENIGN arm, sampled from raw CT logs.
 
 WHY: `tinnhiem_benign` is 100% `.vn`; once the phishing arm dropped its `.vn` restriction, TLD
 alone would separate the arms — the artefact family already caught three times in this study.
@@ -19,14 +19,14 @@ give the arm an age DISTRIBUTION the protocol can match to the phishing arm's.
 
 EXCLUSIONS: drop Vietnamese brand tokens / common words, blocklisted names, free-hosting suffixes
 (else the arm collects Vietnamese phishing by accident). Resulting asymmetry — benign guaranteed
-NOT Vietnamese-targeting, phishing guaranteed to be — is safe only while the NAME is never a P4
-feature; adding a name-derived feature invalidates this arm. State it in the paper.
+NOT Vietnamese-targeting, phishing guaranteed to be — is safe only while the NAME is never a
+modelled feature; adding a name-derived feature invalidates this arm. State it in the paper.
 
 OUTPUT. `data/raw/ct_benign/detections.csv`, the schema `watch_host_infra.py` reads. Add
     "ct_benign": ("benign", "first_detected")
 to its SOURCES map and the infrastructure queue picks these up with no further wiring.
 
-THE .vn SUPPLEMENT (2026-08-21 amendment to P4's pre-specification). The arm above never admits a
+THE .vn SUPPLEMENT (2026-08-21 amendment to the pre-specification). The arm above never admits a
 `.vn` name — TARGET_TLDS was measured over the phishing arm's non-.vn domains and `is_excluded`
 drops the suffix — so the registered `.vn` group had no benign support (0 of 7,226 on 2026-08-21
 against 33 `.vn` phishing). `--stratum vn` is that supplement: the SAME sampler, age search and
@@ -61,7 +61,7 @@ try:
     add_script_dirs()
 except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
-from audit_p4_labels import (HOSTED_SUFFIXES, VN_LEXICAL, load_blocklists,
+from audit_capture_labels import (HOSTED_SUFFIXES, VN_LEXICAL, load_blocklists,
                              registrable)
 from psl import apex
 
@@ -287,7 +287,7 @@ def main() -> int:
                     h = host.lower().lstrip("*.")
                     reg = registrable(h)
                     # One certificate lists many SANs that are not registrations of their own (`www.` duplicates,
-                    # tenant infra). P4's unit is the registration, so only the apex counts -- subdomains would file
+                    # tenant infra). The unit is the registration, so only the apex counts -- subdomains would file
                     # a host's DNS/TLS under its tenants, the `pages.dev` collapse in reverse.
                     if h not in (reg, "www." + reg):
                         continue

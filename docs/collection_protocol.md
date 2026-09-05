@@ -120,7 +120,7 @@ source for users who want a deployment-realistic benign population beside the ma
 
 ## 6. The label gate
 
-`audit_p4_labels.py` assigns every live-stratum phishing registrable domain one verdict, using
+`audit_capture_labels.py` assigns every live-stratum phishing registrable domain one verdict, using
 only evidence independent of the DNS/TLS fields. Exclusion is tested before corroboration:
 
 | verdict | meaning |
@@ -143,14 +143,14 @@ script warns on stderr when that happens.
 
 ## 7. The population build and the funnel
 
-`build_population` in `make_p4_assets.py` applies, per arm: the hosted-subdomain stratum, the
+`build_population` in `make_infra_assets.py` applies, per arm: the hosted-subdomain stratum, the
 wildcard screen (every arm, though only the phishing feed is affected), the gate (phishing arm
 only), reduction of repeated attempts to the most complete record (the one with the most of
 `a_records`, `tls_not_before` and `ns_hosts` populated), and conditioning on a non-empty A record
 and `tls_present=1`. The live stratum is defined by `first_detected` (phishing) or `captured_at`
 (benign) on or after 2026-07-30, the watcher's first tick; domains detected earlier were enriched
 from a backlog, days late, and are a different population. Each stage's count is written to
-`funnel.csv`; `make_p4_funnel.py` draws it together with the per-day accrual.
+`funnel.csv`; `make_capture_funnel.py` draws it together with the per-day accrual.
 
 The script fits no model below the registered trigger of 500 conditioned phishing registrable
 domains; see the README.

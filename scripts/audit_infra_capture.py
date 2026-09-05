@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-audit_infra_capture.py — what the infrastructure capture can and cannot support (P4).
+audit_infra_capture.py — what the infrastructure capture can and cannot support.
 
-P4 asks whether WHOIS/DNS/TLS infrastructure adds signal the URL and content channels do not carry.
+The study asks whether WHOIS/DNS/TLS infrastructure adds signal the URL and content channels do not carry.
 Three properties of the capture decide whether such a study is measurable at all, and all three are
 measurable before any model is fitted.
 
@@ -16,7 +16,7 @@ measurable before any model is fitted.
    (a certificate can precede DNS). The number that ever gained one is reported here; if it is
    zero, the design should say so rather than imply a rescue that is not happening.
 
-3. THE BENIGN ARM IS A TRAP, AND IT HAS NOT BEEN COLLECTED YET — the finding that decides P4. VNNIC
+3. THE BENIGN ARM IS A TRAP, AND IT HAS NOT BEEN COLLECTED YET — the finding that decides the study. VNNIC
    publishes neither WHOIS nor RDAP for .vn, so whois_* is structurally absent for every .vn domain
    (registry policy, not domain death). The available benign feed is 100% .vn; the live phishing
    stratum is mostly non-.vn, where WHOIS is available. A benign arm drawn from that feed would
@@ -25,7 +25,7 @@ measurable before any model is fitted.
    lexical detector already fails. Quantified BEFORE the benign arm is built, because afterwards
    the number is no longer a warning but a result.
 
-The output is a set of design constraints, not a table: P4 must model the live stratum only, treat
+The output is a set of design constraints, not a table: the study must model the live stratum only, treat
 .vn WHOIS absence as structural (never imputed, never given a missingness indicator collinear with
 the TLD), and draw its benign arm TLD- and time-matched against the phishing arm.
 
@@ -151,9 +151,9 @@ def main() -> int:
     print(f"   => rule 'has WHOIS => phishing': TPR {tpr:.3f}, FPR {fpr:.3f}, AUC ~{auc:.3f} "
           f"from one bit of registry policy.")
     print("   => the benign arm MUST be TLD-matched (and time-matched) to the phishing arm, or "
-          "P4 measures VNNIC's disclosure policy and calls it infrastructure.\n")
+          "The study measures VNNIC's disclosure policy and calls it infrastructure.\n")
 
-    # The constructive half. A warning that only forbids leaves P4 with nowhere to go, so name the
+    # The constructive half. A warning that only forbids leaves the study with nowhere to go, so name the
     # features that survive: those whose availability does NOT depend on the TLD can carry a study
     # with the .vn benign feed as-is.
     print("4. WHICH FEATURES SURVIVE — availability gap between .vn and non-.vn (live stratum)")
@@ -172,7 +172,7 @@ def main() -> int:
     print(f"   => TLD-safe feature set: {', '.join(safe)}")
     print(f"   => exclude from any pooled model: {', '.join(unsafe) or '(none)'}")
     print("   => note tls_not_before is the collector's designated domain-age proxy for .vn and "
-          "is available there, so excluding WHOIS does not cost P4 the age signal.\n")
+          "is available there, so excluding WHOIS does not cost the study the age signal.\n")
 
     # The same failure one layer down, and the reason dropping WHOIS is not the end of the audit.
     # A feature is an artefact whenever the SAMPLING guarantees it, and detection channels do

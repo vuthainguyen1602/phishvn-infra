@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-audit_p4_labels.py — is P4's phishing arm actually phishing?
+audit_capture_labels.py — is the phishing arm actually phishing?
 
 urlscan's free tier cannot filter `verdicts.overall.malicious` (watch_urlscan_brands.py:23), so
 `label=phish` really means "hostname with a Vietnamese brand token that urlscan happened to scan".
 The feed's `is_official()` correction is exact-domain only: it holds `bidv.com.vn` but not
-`bidv.vn`, and knows nothing of `sepay.vn`, `teko.vn`, `vbsp.vn`. P4 reads the label as ground
+`bidv.vn`, and knows nothing of `sepay.vn`, `teko.vn`, `vbsp.vn`. The study reads the label as ground
 truth, so this measures the damage before the registered n>=500 trigger locks it in — using only
 evidence INDEPENDENT of infrastructure (Tranco, the project's allowlists, the three blocklists on
-disk), since DNS/TLS/hosting are P4's dependent variables and a label derived from them would be
+disk), since DNS/TLS/hosting are the study's dependent variables and a label derived from them would be
 circular.
 
 Two questions, kept separate: EXCLUSION (positive evidence of a legitimate operator) vs
@@ -25,8 +25,8 @@ has NO REGISTRATION AT ALL. Not the forbidden circularity: the address is the re
 TLD policy (the same artefact family as the `.vn` WHOIS gap) — no phisher, no choice. Like
 `hosted_subdomain`, the verdict marks a unit whose registration-level features are undefined.
 
-RUN:  python scripts/audit_p4_labels.py            # audit the conditioned P4 phishing arm
-      python scripts/audit_p4_labels.py --all      # audit every live urlscan_brands detection
+RUN:  python scripts/audit_capture_labels.py            # audit the conditioned phishing arm
+      python scripts/audit_capture_labels.py --all      # audit every live urlscan_brands detection
 """
 from __future__ import annotations
 
@@ -52,10 +52,10 @@ except ImportError:  # flat public-mirror layout
 
 # BELOW the bootstrap, not above it: psl.py lives in scripts/, which is only on sys.path once
 # add_script_dirs() has run. Imported above, this module could still be IMPORTED (watch_ct_benign,
-# make_p4_assets and four others bootstrap before importing it, so their path is already set) but
+# make_infra_assets and four others bootstrap before importing it, so their path is already set) but
 # could not be RUN -- and running it is how the gate is audited and how p4_content_map.csv is
 # exported on the collector. It was that way from 2026-08-28 (435e6f9) to 2026-08-31, three days
-# in which every importer worked and `python3 scripts/audit_p4_labels.py` raised
+# in which every importer worked and `python3 scripts/audit_capture_labels.py` raised
 # ModuleNotFoundError on both machines.
 from psl import apex  # noqa: E402
 
@@ -66,7 +66,7 @@ OUT = os.path.join("data", "interim", "p4_label_audit.csv")
 # Every suffix the wildcard guard probed during a run, with what the resolver answered, so the
 # data article can publish the probe instead of asking readers to trust the verdicts.
 WILDCARD_PROBE_OUT = os.path.join("data", "processed", "p4", "p4_wildcard_probe.csv")
-WATCHER_START = "2026-07-30"   # same boundary make_p4_assets.py uses for the live stratum
+WATCHER_START = "2026-07-30"   # same boundary make_infra_assets.py uses for the live stratum
 
 # include_psl_private_domains=True -- without it every site on a free subdomain host collapses to
 # the HOST's registration (`login-bidv.pages.dev` -> `pages.dev`): distinct phishing sites merge
@@ -89,7 +89,7 @@ HOSTED_SUFFIXES = ("pages.dev", "netlify.app", "vercel.app", "web.app", "firebas
 # LEXICAL subset of vn_filter.VN_TOKENS: Vietnamese common nouns/verbs only, every brand name
 # removed -- brand tokens produced this audit's false positives (`bidv` sits innocently in
 # Bidvest, bidvine.de). `dichvucong`, `baohiemxahoi`, `kekhai` are Vietnamese WORDS: spelling
-# one out addresses Vietnamese speakers, a fact about LANGUAGE independent of P4's dependent
+# one out addresses Vietnamese speakers, a fact about LANGUAGE independent of the study's dependent
 # variables. Not proof of malice, so the exclusion filters still run first.
 VN_LEXICAL = re.compile(
     r"(nganhang|taikhoan|thanhtoan|chuyentien|nhantien|naptien|ruttien|vaytien|tietkiem|tindung|"
@@ -443,7 +443,7 @@ def write_wildcard_probe(path: str = WILDCARD_PROBE_OUT) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true",
-                    help="audit every urlscan_brands detection, not just P4's conditioned arm")
+                    help="audit every urlscan_brands detection, not just the conditioned arm")
     ap.add_argument("--live", action="store_true",
                     help="audit the live-stratum conditioned phishing arm with NO TLD restriction, "
                          "recomputed from host_infra.csv (the direction-1 population)")
@@ -495,7 +495,7 @@ def main() -> int:
     else:
         df = pd.read_csv(P4_DATASET)
         domains = list(df[df["arm"] == "phish"]["registered_domain"])
-        scope = "P4 conditioned phishing arm"
+        scope = "conditioned phishing arm"
 
     cmap = load_content_map(args.content_map) if args.content_map else None
     # BEFORE audit(), not after: write_wildcard_probe() runs inside audit() and writes into this same
@@ -525,7 +525,7 @@ def main() -> int:
         print("[i] wildcarding suffixes (probe resolved): "
               + "; ".join(f".{s} -> {','.join(ips)}" for s, ips in sorted(wild.items())))
     print(f"\n[+] {OUT}")
-    print("[!] 'uncorroborated' is not a phishing label. Any P4 fit that treats it as one is "
+    print("[!] 'uncorroborated' is not a phishing label. Any fit that treats it as one is "
           "measuring brand-token co-occurrence, not phishing.")
     return 0
 

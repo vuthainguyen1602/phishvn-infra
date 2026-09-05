@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-make_p4_assets.py — P4's results machinery, built before the data matured.
+make_infra_assets.py — the results machinery, built before the data matured.
 
-P4 (papers/P4_infra) is a time-stamped pre-specified design: population, features, models and the
+The study is a time-stamped pre-specified design: population, features, models and the
 success criterion are frozen in §5. This script IS that protocol, executable. It always regenerates
 the pre-outcome monitoring assets and refuses to fit until BOTH the candidate trigger and the
 trusted-positive outcome gate are satisfied. Candidate-screen verdicts never become model labels.
 
-    python scripts/make_p4_assets.py            # regenerate monitoring assets; fit iff triggered
-    python scripts/make_p4_assets.py --smoke    # the fitting path on LABEL-PERMUTED data;
+    python scripts/make_infra_assets.py            # regenerate monitoring assets; fit iff triggered
+    python scripts/make_infra_assets.py --smoke    # the fitting path on LABEL-PERMUTED data;
                                                 # writes only to data/interim/p4_smoke/
 
 POPULATION RULE CHANGE (2026-08-03): the original both-arms .vn cut selected exactly the slice with
@@ -16,7 +16,7 @@ no phishing — of 32 conditioned .vn "phishing" domains, zero blocklist-corrobo
 verifiably legitimate (bidv.vn, viettelpost.vn, sepay.vn...). Mechanism
 (watch_urlscan_brands.py:23): urlscan's free tier cannot filter maliciousness, so label=phish means
 only "hostname contains a Vietnamese brand token" — worst on .vn, since VN phishing is ~2.7% .vn
-(P9) while VN companies are there. Repair: drop the TLD cut, let audit_p4_labels.audit() decide.
+(P9) while VN companies are there. Repair: drop the TLD cut, let audit_capture_labels.audit() decide.
 
 Population (§5, revised): phishing = live stratum only (first_detected >= 2026-07-30), admitted on
 a corroborated / credential_form / content_confirmed / vn_lexical verdict; uncorroborated and
@@ -26,7 +26,7 @@ pooled, only kept as an age-mismatched comparator. Free-hosting-suffix names are
 in both arms (registration-level features belong to the provider) — counted, never modelled.
 Registry-wildcard names (artefact #5, 2026-08-16) resolve, serve 443 and capture HTTP-200 without
 ever being REGISTERED — 708 of 1,036 conditioned "phishing" domains were this — and are screened
-from EVERY arm by capture-time a_records vs a live probe (audit_p4_labels.is_registry_wildcard),
+from EVERY arm by capture-time a_records vs a live probe (audit_capture_labels.is_registry_wildcard),
 counted in the funnel and modelled nowhere. Survivors are deduplicated to the most complete record
 per registrable domain, conditioned on resolving AND serving TLS.
 
@@ -53,9 +53,9 @@ except ImportError:  # flat public-mirror layout
 from paired_eval import corrected_paired_t, wilson
 from genfile import write_generated
 from compphish_features import extract as lex_extract
-from audit_p4_labels import (audit, is_hosted_subdomain,
+from audit_capture_labels import (audit, is_hosted_subdomain,
                              is_registry_wildcard, load_content_map, registrable)
-from p4_outcome_gate import OUTCOME_LABELS, trusted_positive_population
+from outcome_gate import OUTCOME_LABELS, trusted_positive_population
 
 INFRA = "data/raw/host_infra/host_infra.csv"
 DATASET = "data/processed/p4/p4_infra_dataset.csv"
@@ -154,7 +154,7 @@ def build_population() -> tuple[pd.DataFrame, dict]:
         print(f"[!] {CONTENT_MAP} absent — the 'content_confirmed' class is UNAVAILABLE and the "
               "phishing arm is undercounted by every domain whose only evidence is that it renders "
               "Vietnamese. The captures live on the collector; export the map there with "
-              f"`python scripts/audit_p4_labels.py --export-content {CONTENT_MAP}` and sync it.",
+              f"`python scripts/audit_capture_labels.py --export-content {CONTENT_MAP}` and sync it.",
               file=sys.stderr)
 
     # Capture-time addresses per registrable domain, unioned across attempts: a domain that ever
@@ -235,7 +235,7 @@ def build_population() -> tuple[pd.DataFrame, dict]:
     keep = ["registered_domain", "arm", "source", "verdict", "first_detected", "captured_at",
             "cert_age_days", "cert_validity_days", "issuer_grp", "san_count", "ttl",
             "ns_count", "ns_provider_grp", "mx_present", "cname_present"]
-    # Atomic replace: make_p4b_assets imports build_population and can run concurrently; a
+    # Atomic replace: make_infra_data_assets imports build_population and can run concurrently; a
     # plain to_csv leaves a torn file to whichever reader arrives mid-write.
     write_generated(DATASET, pop[keep].to_csv(index=False))
     return pop, funnel
@@ -496,7 +496,7 @@ def fit_main(pop: pd.DataFrame, out_dir: str, smoke: bool) -> None:
     if not smoke:
         pop, outcome_gate = trusted_positive_population(pop, TRIGGER)
         if not outcome_gate.unlocked:
-            raise RuntimeError("P4 outcome is locked: " + outcome_gate.reason)
+            raise RuntimeError("outcome is locked: " + outcome_gate.reason)
     d = pop[pop["arm"].isin(MODEL_ARMS)].copy()
     if smoke:
         rng = np.random.default_rng(0)
@@ -652,7 +652,7 @@ def main() -> int:
     elif n >= TRIGGER and outcome_gate.unlocked:
         fit_main(trusted_pop, SECTIONS, smoke=False)
     else:
-        print(f"[i] P4 outcome locked — candidates {n}/{TRIGGER}; {outcome_gate.reason}. "
+        print(f"[i] outcome locked — candidates {n}/{TRIGGER}; {outcome_gate.reason}. "
               f"No real-outcome model is fitted. Expected labels: {OUTCOME_LABELS}")
     return 0
 

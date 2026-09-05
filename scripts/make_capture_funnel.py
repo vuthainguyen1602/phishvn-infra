@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-make_p4_funnel.py — the population funnel and the accrual toward the trigger, drawn.
+make_capture_funnel.py — the population funnel and the accrual toward the trigger, drawn.
 
 WHY THESE TWO TOGETHER. Both answer the question a time-stamped pre-specified design invites and a table
 answers badly: is this study going to have a population, and where did the candidates go?
@@ -23,7 +23,7 @@ is visibly not constant, and a cleverer extrapolation would invite belief in a d
 cannot support. Two rates are drawn — whole-window average and trailing fortnight — and where they
 disagree is the honest uncertainty.
 
-    python scripts/make_p4_funnel.py
+    python scripts/make_capture_funnel.py
 
 Writes data/processed/p4/p4_funnel.csv, data/processed/p4/p4_accrual.csv,
 papers/P4_infra/figures/funnel_accrual.pdf and papers/P4_infra/sections/gen_funnel.tex.
@@ -49,7 +49,7 @@ from genfile import write_generated
 # The funnel, the trigger and the population rule are imported rather than restated: this figure
 # must be the same object the table is, or it becomes a second source of truth for a number the
 # pre-specification turns on.
-from make_p4_assets import TRIGGER, build_population
+from make_infra_assets import TRIGGER, build_population
 
 SEC = os.path.join(ROOT, "papers", "P4_infra", "sections")
 FIG = os.path.join(ROOT, "papers", "P4_infra", "figures")

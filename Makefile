@@ -8,10 +8,10 @@ benign:       ## one tick of the CT-sampled benign arm (3-day target age)
 benign-vn:    ## one tick of the .vn supplement
 	python scripts/watch_ct_benign.py --stratum vn --age-days 3 --target 10 --max-entries 20000
 audit:        ## label gate over the live-stratum phishing arm
-	python scripts/audit_p4_labels.py --live
+	python scripts/audit_capture_labels.py --live
 population:   ## funnel + conditioned population (refuses to fit models below the registered trigger)
-	python scripts/make_p4_assets.py
+	python scripts/make_infra_assets.py
 assets:       ## the data article's tables and figures
-	python scripts/make_p4_funnel.py && python scripts/make_p4b_assets.py
+	python scripts/make_capture_funnel.py && python scripts/make_infra_data_assets.py
 clean:
 	rm -rf data/processed/p4/p4_*.csv

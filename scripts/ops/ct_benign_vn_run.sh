@@ -1,6 +1,6 @@
 #!/bin/bash
-# Wrapper for the .vn BENIGN SUPPLEMENT of P4's matched arm (run by cron on the Jetson).
-# Registered by the 2026-08-21 amendment in papers/P4_infra/PREREG_trigger_analysis.md: the
+# Wrapper for the .vn BENIGN SUPPLEMENT of the matched arm (run by cron on the Jetson).
+# Registered by the 2026-08-21 amendment to the pre-specification: the
 # matched arm's collector bars .vn by its TLD allow-list and suffix test, so the .vn registry
 # group had no benign support. This is the same sampler with `--stratum vn`, writing to its own
 # directory (data/raw/ct_benign_vn/) so it is its own source and fills .vn matching cells only.

@@ -58,7 +58,7 @@ SOURCES = {
     "urlscan_brands": ("phish", "first_detected"),
     "ct_brands": ("phish", "first_detected"),
     "tinnhiem_benign": ("benign", "first_captured"),
-    # TLD- and age-matched benign arm for P4 (watch_ct_benign.py). tinnhiem_benign is 100% .vn and
+    # TLD- and age-matched benign arm (watch_ct_benign.py). tinnhiem_benign is 100% .vn and
     # stopped matching the phishing arm the moment that arm dropped its .vn restriction.
     "ct_benign": ("benign", "first_detected"),
     # The .vn supplement of that arm (watch_ct_benign.py --stratum vn; 2026-08-21 amendment).

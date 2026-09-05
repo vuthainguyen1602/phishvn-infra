@@ -74,7 +74,7 @@ PUBLISHED_DOI = "10.17632/b97hxbxtpd.4"
 # mirror's reader is meant to follow. Shared by both profiles: see _link_gate, which waives by
 # FILE, so a new dead link in one of these still has to be argued for here.
 DOC_LINK_WAIVERS = {
-    "make_p4b_assets.py": "its file table is the deposit's manifest, listing files that ship there",
+    "make_infra_data_assets.py": "its file table is the deposit's manifest, listing files that ship there",
     "make_release.py": "same -- it builds the deposits, so its paths are theirs, not this mirror's",
     "make_public_repo.py": "the export policy has to name what each profile ships -- the other"
                            " mirror's README, and the notes both profiles carry",
@@ -291,19 +291,19 @@ INFRA_SCRIPTS = [
     "studies/p4_infra/watch_ct_benign.py",       # CT-sampled, age-matched benign arm (+ --stratum vn)
     "core/collect/watch_urlscan_brands.py",  # brand-token urlscan feed (the live phishing channel)
     "core/collect/watch_chongluadao.py",     # capture helpers watch_urlscan_brands imports
-    "studies/p4_infra/audit_p4_labels.py",         # the label gate + registry-wildcard probe
-    "studies/p4_infra/make_p4_assets.py",         # candidate population + T1, behind the trusted-label lock
-    "studies/p4_infra/make_p4_funnel.py",         # funnel + accrual tables/figure
-    "studies/p4_infra/make_p4b_assets.py",        # the data article's generated tables/figures
+    "studies/p4_infra/audit_capture_labels.py",         # the label gate + registry-wildcard probe
+    "studies/p4_infra/make_infra_assets.py",         # candidate population + T1, behind the trusted-label lock
+    "studies/p4_infra/make_capture_funnel.py",         # funnel + accrual tables/figure
+    "studies/p4_infra/make_infra_data_assets.py",        # the data article's generated tables/figures
     "core/lib/psl.py",                       # vendored from the URL-corpus repo (source of truth there)
     "core/lib/vn_filter.py",                 # vendored: VN-targeting test + brand tokens
     "core/lib/genfile.py",                   # atomic writer
     "core/lib/figstyle.py",                  # house palette (installs the axis guard)
     "core/lib/axguard.py",                   # refuses to write a figure that clips its data
     "core/lib/paired_eval.py",               # wilson() used by build_population's tables
-    "core/lib/compphish_features.py",        # lexical channel make_p4_assets imports at module load
-    "core/lib/p4_outcome_gate.py",           # shared fail-closed unlock for every P4 outcome path
-    "studies/p4_infra/make_p4_perishability.py", # capture perishability (live vs backfill resolvability)
+    "core/lib/compphish_features.py",        # lexical channel make_infra_assets imports at module load
+    "core/lib/outcome_gate.py",           # shared fail-closed unlock for every P4 outcome path
+    "studies/p4_infra/make_perishability.py", # capture perishability (live vs backfill resolvability)
     "studies/p4_infra/audit_infra_capture.py",     # its helper: the WHOIS-by-policy artefact, measured
     "core/release/make_public_repo.py",      # this exporter
 ]
@@ -317,14 +317,14 @@ INFRA_TESTS: list[str] = []
 INFRA_PROSE_WAIVERS = {
     "watch_host_infra.py": "one comment names the study whose benign arm the source map serves",
     "watch_ct_benign.py": "this IS that study's matched benign arm; its docstring names the design",
-    "audit_p4_labels.py": "this IS that study's label gate; the label names what it audits",
-    "make_p4_assets.py": "this IS that study's population builder; paths it writes name it",
-    "make_p4_funnel.py": "names the paper folder its figure is written into",
-    "make_p4b_assets.py": "names the data article's own paper folder (its output path)",
+    "audit_capture_labels.py": "this IS that study's label gate; the label names what it audits",
+    "make_infra_assets.py": "this IS that study's population builder; paths it writes name it",
+    "make_capture_funnel.py": "names the paper folder its figure is written into",
+    "make_infra_data_assets.py": "names the data article's own paper folder (its output path)",
     "make_public_repo.py": "the export policy has to name which papers are held back",
     "ct_benign_run.sh": "the cadence clause names the data article whose 'four-hourly' the claims suite matches this comment against",
     "audit_infra_capture.py": "this IS that study's capture audit; it names the design it constrains",
-    "make_p4_perishability.py": "names the paper folder its table is written into",
+    "make_perishability.py": "names the paper folder its table is written into",
     "urlscan_brands_run.sh": "the wrapper comment names the study its feed serves",
     "rowcount_snapshot.sh": "the comment names the arm whose back-dated stamps it exists for",
     "ct_benign_vn_run.sh": "names the pre-specification amendment that created the stratum",
@@ -341,11 +341,11 @@ benign:       ## one tick of the CT-sampled benign arm (3-day target age)
 benign-vn:    ## one tick of the .vn supplement
 \tpython scripts/watch_ct_benign.py --stratum vn --age-days 3 --target 10 --max-entries 20000
 audit:        ## label gate over the live-stratum phishing arm
-\tpython scripts/audit_p4_labels.py --live
+\tpython scripts/audit_capture_labels.py --live
 population:   ## funnel + conditioned population (refuses to fit models below the registered trigger)
-\tpython scripts/make_p4_assets.py
+\tpython scripts/make_infra_assets.py
 assets:       ## the data article's tables and figures
-\tpython scripts/make_p4_funnel.py && python scripts/make_p4b_assets.py
+\tpython scripts/make_capture_funnel.py && python scripts/make_infra_data_assets.py
 clean:
 \trm -rf data/processed/p4/p4_*.csv
 """

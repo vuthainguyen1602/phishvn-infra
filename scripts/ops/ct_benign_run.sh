@@ -15,7 +15,7 @@ mkdir -p data/raw/ct_benign
 #     strata are never visited, and the constant-age artefact comes back via the schedule.
 #     Deployed on a `*/4` line until 2026-08-16, which pinned AGE=1 for 62/63 ticks. That
 #     clause is PARSED, not prose: check_paper_claims.py reads `*/N` + the date out of this
-#     comment and matches it against P4b's "four-hourly". Keep them on one line.
+#     comment and matches it against the data article's "four-hourly". Keep them on one line.
 #   * `10#` keeps bash from reading hours 08/09 as octal. Keep it.
 # The targets, the 2026-08-24 prereg widening with its cell measurements, and why 0.4/0.8 rather
 # than 0: docs/decisions/ct-benign-age-rotation.md

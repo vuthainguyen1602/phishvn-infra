@@ -50,11 +50,11 @@ scripts/                     flat layout: every module imports its siblings by b
   watch_ct_benign.py         CT-sampled, age-matched benign arm; --stratum vn for the .vn supplement
   watch_urlscan_brands.py    the live phishing channel (brand-token urlscan search + capture)
   watch_chongluadao.py       capture helpers the urlscan channel imports
-  audit_p4_labels.py         the label gate and the registry-wildcard probe
-  make_p4_assets.py          build_population(): strata, wildcard screen, gate, dedup, conditioning
-  make_p4_funnel.py          funnel and accrual tables and figure
-  make_p4b_assets.py         the data article's generated tables and figures
-  make_p4_perishability.py   capture perishability: live vs backfill resolvability, retry outcomes
+  audit_capture_labels.py         the label gate and the registry-wildcard probe
+  make_infra_assets.py          build_population(): strata, wildcard screen, gate, dedup, conditioning
+  make_capture_funnel.py          funnel and accrual tables and figure
+  make_infra_data_assets.py         the data article's generated tables and figures
+  make_perishability.py   capture perishability: live vs backfill resolvability, retry outcomes
   audit_infra_capture.py     the WHOIS-by-policy artefact, measured before the benign arm was built
   psl.py, vn_filter.py       vendored from the URL corpus repository (see below)
   genfile.py, figstyle.py, axguard.py, paired_eval.py, compphish_features.py   shared helpers
@@ -108,13 +108,13 @@ The Makefile wraps the same commands (`make benign`, `make benign-vn`, `make inf
 ## Audit, gate and population build
 
 ```bash
-python scripts/audit_p4_labels.py --live      # one verdict per live-stratum phishing domain
-python scripts/make_p4_assets.py              # funnel + conditioned population
-python scripts/make_p4_funnel.py              # funnel/accrual tables and figure
-python scripts/make_p4b_assets.py             # the data article's tables and figures
+python scripts/audit_capture_labels.py --live      # one verdict per live-stratum phishing domain
+python scripts/make_infra_assets.py              # funnel + conditioned population
+python scripts/make_capture_funnel.py              # funnel/accrual tables and figure
+python scripts/make_infra_data_assets.py             # the data article's tables and figures
 ```
 
-`audit_p4_labels.py` uses only evidence independent of the DNS/TLS fields: exclusion verdicts
+`audit_capture_labels.py` uses only evidence independent of the DNS/TLS fields: exclusion verdicts
 first (`hosted_subdomain`, `excluded_legitimate`, `registry_wildcard`), then the positive
 verdicts in order of strength (`corroborated`, `credential_form`, `content_confirmed`,
 `vn_lexical`); the rest are `no_capture` or `uncorroborated` and are counted and excluded, never
@@ -124,7 +124,7 @@ collectors). If the Tranco lists are absent the script warns on stderr that ever
 disabled and that its results are not valid; the deposited `label_audit.csv` is the run with the
 lists present.
 
-`make_p4_assets.py` builds the population per arm (hosted-subdomain stratum, wildcard screen,
+`make_infra_assets.py` builds the population per arm (hosted-subdomain stratum, wildcard screen,
 gate, reduction of repeated attempts to the most complete record, conditioning on a non-empty A
 record and `tls_present=1`) and writes the funnel. **It refuses to fit any model while the
 phishing arm is below the registered trigger** (`TRIGGER = 500` conditioned registrable domains):
@@ -135,6 +135,16 @@ read by a manuscript.
 `vn_filter.py` reads `data/processed/brand_tokens.json`, which is built from the public
 trusted-org registry by `build_brand_tokens.py` in the URL corpus repository; without it the
 filter falls back to its built-in token set and says so.
+
+## A note on the asset generators
+
+`make_infra_assets.py`, `make_infra_data_assets.py`, `make_capture_funnel.py`,
+`make_perishability.py`, `make_capture_lag.py` and `validate_infra_dataset.py` write LaTeX tables
+and figures into a `papers/` tree that is **not** part of this repository: it is the manuscript
+source the corpus was built for. Running them here produces the CSVs under `data/processed/` as
+normal and creates that directory for the `.tex` output, which you can read or delete. They ship
+because the path from a stored result to a printed number should be inspectable, not because a
+clone is expected to typeset the papers.
 
 ## Deposit
 
@@ -162,7 +172,7 @@ That repository is the code release of the PhishVN **URL** corpus. Three modules
 both projects and are vendored here at the tagged commit rather than imported across
 repositories: `psl.py` (registrable-domain folding with the PSL private section), `vn_filter.py`
 (the Vietnamese-targeting test and brand tokens) and the blocklist/allow-list loaders inside
-`audit_p4_labels.py` and `watch_urlscan_brands.py`. The URL corpus repository is the source of
+`audit_capture_labels.py` and `watch_urlscan_brands.py`. The URL corpus repository is the source of
 truth for those modules; fixes land there first and are re-vendored here by re-running the
 exporter (`make_public_repo.py --profile infra`). This repository adds nothing to the URL corpus
 and the URL corpus repository does not contain the infrastructure collectors.
