@@ -5,7 +5,10 @@
 #
 # USAGE:  ./scripts/ops/jetson_health.sh [user@host]      (default: $JETSON_HOST)
 set -euo pipefail
-HOST="${1:-${JETSON_HOST:-bvdung@192.168.1.50}}"
+# No default host. The account name and LAN address of a real device were baked in here and
+# shipped to the public mirror; the script takes them from the argument or JETSON_HOST instead.
+HOST="${1:-${JETSON_HOST:-}}"
+[ -n "$HOST" ] || { echo "usage: $0 user@host   (or set JETSON_HOST)" >&2; exit 2; }
 
 ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" 'bash -s' <<'REMOTE'
 set -u

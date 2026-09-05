@@ -121,6 +121,8 @@ PROSE_WAIVERS = {
     "run_combined_training.py": "the pooling baseline of that study; OUT_TEX writes into it",
     "run_ml_label_sensitivity.py": "one script serves the tier-sensitivity table of every ML"
                                    " study, so its docstring has to say which arm is which",
+    "p2_generate_corpus.py": "builds that study's simulated corpus; the label names the corpus",
+    "p2_corpus_ext.py": "the pre-committed extension of that same corpus",
     # P6 XAI / suffix blind spot study scripts.
     "run_p6_suffix_blindspot.py": "this IS that study's blind-spot measurement",
     "run_p6_vn_deficit.py": "this IS that study's pooled-versus-split deficit",
@@ -209,6 +211,8 @@ INCLUDE_SCRIPTS = [
     "studies/p2_url_benchmark/audit_xdata_leakage.py",      # the domain-disjoint guard on the transfer diagonal
     "studies/p3_multimodal/run_combined_training.py",       # pooling three corpora: the "just add corpora" baseline
     "studies/p3_multimodal/run_ml_label_sensitivity.py",   # the tier/noise sensitivity tables three papers print
+    "studies/p3_multimodal/p2_generate_corpus.py",         # the simulated lure corpus the evasion numbers were measured on
+    "studies/p3_multimodal/p2_corpus_ext.py",              # its pre-committed extension
     # P6 (XAI / suffix blind spot)
     "studies/p6_xai/run_p6_suffix_blindspot.py",  # the blind-spot measurement the abstract opens with
     "studies/p6_xai/run_p6_vn_deficit.py",        # the pooled-vs-split .vn deficit
