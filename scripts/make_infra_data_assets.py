@@ -165,7 +165,10 @@ def write_files_table() -> dict[str, int]:
               "\\caption{Repository structure: every file in "
               "\\nolinkurl{PhishVN-Infra_v1.0.0_open.zip}, with its size or row count at the "
               "build snapshot.}\n\\label{tab:files}\n"
-              "\\begin{tabular}{@{}l l l@{}}\n\\toprule\nPath & Size/count & Contents \\\\\n"
+              # Contents wraps: the deposit gained four files in 2026-09 and the widest
+              # description then pushed the table 72pt past the margin.
+              "\\begin{tabular}{@{}l l >{\\raggedright\\arraybackslash}p{0.46\\linewidth}@{}}\n"
+              "\\toprule\nPath & Size/count & Contents \\\\\n"
               "\\midrule\n")
     for path, local, unit, what in DEPOSIT:
         n = count_rows(local, unit) if unit else None
