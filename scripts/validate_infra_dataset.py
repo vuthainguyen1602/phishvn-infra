@@ -176,15 +176,13 @@ def write_assets(tab: pd.DataFrame, raw: pd.DataFrame, pop: pd.DataFrame) -> Non
     sr = tab[tab["check"] == "success_rate"].set_index("subject")
     out = io.StringIO()
     out.write("\\begin{table}[h]\\centering\\footnotesize" + nl
-              + "\\caption{Technical validation of \\nolinkurl{host_infra.csv}. Each stage is "
-                "conditioned on the one above it, because a name that no longer resolves cannot "
-                "present a certificate and its failure is not an instrument failure. The "
-                "post-screen column drops the registry-wildcard names, which resolve and shake "
-                "hands against a registry's parking host and then present nothing that "
-                "verifies.}" + nl
+              + "\\caption{Conditional measurement availability in capture rows with parseable timestamps. "
+                "Rows include repeat attempts and live and backlog strata. Source labels are not "
+                "adjudicated ground truth. The post-screen column excludes domains flagged by the "
+                "wildcard-compatible screen; it does not select gate-admitted candidates.}" + nl
               + "\\label{tab:validation}" + nl
               + "\\begin{tabular}{lrrrr}\\toprule" + nl
-              + "Stage & All & Phishing & \\quad post-screen & Benign \\\\ \\midrule" + nl)
+              + "Stage & All & Source-positive & \\quad post-screen & Source-benign \\\\ \\midrule" + nl)
     labels = [("resolved", "Resolved (A record)"),
               ("tls_handshake_given_resolved", "TLS handshake $\\mid$ resolved"),
               ("tls_cert_given_handshake", "Certificate read $\\mid$ handshake"),
@@ -216,8 +214,12 @@ def main() -> None:
     raw, unparsed = load()
     raw = strata(raw)
     pop = pd.read_csv(POP, low_memory=False)
+    timestamp_audit = pd.DataFrame([{
+        "check": "input_exclusion", "subject": "unparseable_timestamps",
+        "value": unparsed, "unit": "rows", "n": unparsed, "of": len(raw) + unparsed,
+    }])
     tab = pd.concat([completeness(raw), success_chain(raw), multiplicity(raw),
-                     consistency(raw, pop)], ignore_index=True)
+                     consistency(raw, pop), timestamp_audit], ignore_index=True)
     write_generated(OUT, tab.to_csv(index=False))
     write_assets(tab, raw, pop)
 

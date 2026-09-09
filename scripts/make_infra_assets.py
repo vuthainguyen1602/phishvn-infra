@@ -18,9 +18,9 @@ verifiably legitimate (bidv.vn, viettelpost.vn, sepay.vn...). Mechanism
 only "hostname contains a Vietnamese brand token" — worst on .vn, since VN phishing is ~2.7% .vn
 while VN companies are there. Repair: drop the TLD cut, let audit_capture_labels.audit() decide.
 
-Population (§5, revised): phishing = live stratum only (first_detected >= 2026-07-30), admitted on
-a corroborated / credential_form / content_confirmed / vn_lexical verdict; uncorroborated and
-no_capture are honest unknowns, excluded_legitimate the error that forced the rewrite. Benign arm =
+Population (§5, revised): candidate acquisition cohort = live stratum only (first_detected >= 2026-07-30), admitted on
+a historical_feed_match / credential_form / vietnamese_content / vn_lexical screen reason; uncorroborated and
+no_capture are honest unknowns; reputation_screened is a study exclusion, not benignness. Benign arm =
 ct_benign (TLD- and age-matched from raw CT logs); tinnhiem_benign is 100% .vn so it is never
 pooled, only kept as an age-mismatched comparator. Free-hosting-suffix names are their own stratum
 in both arms (registration-level features belong to the provider) — counted, never modelled.
@@ -71,11 +71,11 @@ LOCAL_TZ = "Asia/Ho_Chi_Minh"
 CT_SOURCES = ("ct_benign", "ct_benign_vn")
 TRIGGER, CONFIRM = 500, 1000
 
-# Positive-evidence verdicts, strongest first: blocklist-named, rendered credential form (added
+# Candidate-screen reasons only, never outcome labels: blocklist-named, rendered credential form (added
 # 2026-08-16 -- only 18% of Vietnamese-rendering pages ask for a password, so language and
 # harvesting are distinct), rendered Vietnamese, or a name that spells a Vietnamese word.
-# Everything else is unknown or exoneration: an arm of unknowns measures token co-occurrence.
-PHISH_VERDICTS = ("corroborated", "credential_form", "content_confirmed", "vn_lexical")
+# Every screen class remains an unknown outcome: an arm of unknowns measures token co-occurrence.
+CANDIDATE_VERDICTS = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical")
 BENIGN_SOURCE = "ct_benign"
 # The .vn supplement of the matched arm (PREREG amendment 2026-08-21): its own source, admitted to
 # the SAME arm under the same conditioning, but it may fill .vn cells only, and is never pooled.
@@ -151,8 +151,8 @@ def build_population() -> tuple[pd.DataFrame, dict]:
 
     content = load_content_map(CONTENT_MAP) if os.path.exists(CONTENT_MAP) else None
     if content is None:
-        print(f"[!] {CONTENT_MAP} absent — the 'content_confirmed' class is UNAVAILABLE and the "
-              "phishing arm is undercounted by every domain whose only evidence is that it renders "
+        print(f"[!] {CONTENT_MAP} absent — the Vietnamese-content candidate screen is unavailable and the "
+              "candidate monitoring omits domains whose only screening signal is that they render "
               "Vietnamese. The captures live on the collector; export the map there with "
               f"`python scripts/audit_capture_labels.py --export-content {CONTENT_MAP}` and sync it.",
               file=sys.stderr)
@@ -197,7 +197,7 @@ def build_population() -> tuple[pd.DataFrame, dict]:
             stage_removed.update((d, "registry_wildcard") for d in arm.loc[wild, "registered_domain"])
         arm = arm[~wild]
         if name == "phish":
-            gated = arm["registered_domain"].map(lambda d: verdict.get(d) in PHISH_VERDICTS).astype(bool)
+            gated = arm["registered_domain"].map(lambda d: verdict.get(d) in CANDIDATE_VERDICTS).astype(bool)
             stage_removed.update((d, "label_gate") for d in arm.loc[~gated, "registered_domain"])
             arm = arm[gated]
         funnel[f"{name}_gate"] = arm["registered_domain"].nunique()
@@ -232,7 +232,13 @@ def build_population() -> tuple[pd.DataFrame, dict]:
     pop["mx_present"] = (pd.to_numeric(pop["mx_count"], errors="coerce") > 0).astype(int)
     pop["cname_present"] = pop["cname"].fillna("").astype(str).str.strip().astype(bool).astype(int)
 
-    keep = ["registered_domain", "arm", "source", "verdict", "first_detected", "captured_at",
+    # arm preserves the historical acquisition cohort; it is never a training label.
+    pop["label"] = "unknown"
+    status = audit_tab.set_index("registered_domain")["label_status"]
+    pop["label_status"] = pop["registered_domain"].map(status).where(pop["arm"] == "phish", "unknown")
+    pop["training_eligible"] = 0
+    pop["policy_version"] = "2.0.0"
+    keep = ["domain", "label", "label_status", "training_eligible", "policy_version", "registered_domain", "arm", "source", "verdict", "first_detected", "captured_at",
             "cert_age_days", "cert_validity_days", "issuer_grp", "san_count", "ttl",
             "ns_count", "ns_provider_grp", "mx_present", "cname_present"]
     # Atomic replace: make_infra_data_assets imports build_population and can run concurrently; a
@@ -256,7 +262,7 @@ def write_label_audit(ph_live: pd.DataFrame, audit_tab: pd.DataFrame,
     tab = tab.reset_index()
     cols = ["registered_domain", "source", "first_detected", "verdict", "stage_removed",
             "in_tranco", "in_allowlist", "blocklists", "renders_vietnamese", "credential_form",
-            "vn_lexical"]
+            "vn_lexical", "label_status", "label", "training_eligible", "policy_version"]
     tab = tab[cols].sort_values(["stage_removed", "verdict", "registered_domain"])
     counts = tab["stage_removed"].value_counts().to_dict()
     live = funnel["phish_live"]
@@ -278,7 +284,7 @@ FEATURES_NUM = ["cert_age_days", "cert_validity_days", "san_count", "ttl", "ns_c
 FEATURES_CAT = ["issuer_grp", "ns_provider_grp"]
 
 
-ARM_COLUMNS = (("phish", "Phishing"),
+ARM_COLUMNS = (("phish", "Candidates"),
                ("benign", "Benign (\\texttt{ct\\_benign})"),
                (COMPARATOR_ARM, "Comparator (\\texttt{tinnhiem\\_benign})"))
 
@@ -296,8 +302,8 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
     _, outcome_gate = trusted_positive_population(pop, TRIGGER)
     gate_reason_tex = outcome_gate.reason.replace("_", r"\_")
     with io.StringIO() as f:
-        f.write(f"As of {asof}: ${n_ph}$ conditioned phishing registrable domains admitted by the "
-                f"label gate of \\S\\ref{{sec:protocol}} (${100 * n_ph // TRIGGER}\\%$ of the "
+        f.write(f"As of {asof}: ${n_ph}$ conditioned candidate registrable domains admitted by the "
+                f"screen of \\S\\ref{{sec:protocol}} (${100 * n_ph // TRIGGER}\\%$ of the "
                 f"$n \\geq {TRIGGER}$ analysis trigger), of which ${n_vn}$ are \\texttt{{.vn}}, "
                 f"and ${format(n_be, ',').replace(',', '{,}')}$ conditioned benign registrable domains from \\texttt{{ct\\_benign}} "
                 f"--- the age-matched arm, and the only benign arm the comparison uses. "
@@ -308,7 +314,8 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                    f"contrast is out of reach until the benign feed supplies them. "
                    if be_vn < n_vn else
                    f"The benign arm holds ${be_vn}$ \\texttt{{.vn}} domains against the phishing "
-                   f"arm's ${n_vn}$, so the TLD match is achieved on both sides. ")
+                   f"arm's ${n_vn}$, so both pools support the registry group; age-cell coverage "
+                   f"and residual source differences still require assessment. ")
                 + f"The \\texttt{{tinnhiem\\_benign}} comparator (${n_cmp}$ conditioned) is reported "
                 "beside it and never pooled with it: it is entirely \\texttt{.vn}, so pooling "
                 "would reinstate as a benign marker the very restriction this design dropped. "
@@ -335,7 +342,7 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                 "to the phishing arm only.}\n"
                 "\\label{tab:audit}\n"
                 "\\begin{tabular}{lccc}\\toprule\n"
-                "Cut & Phishing & Benign & Comparator \\\\ \\midrule\n")
+                "Cut & Candidates & CT controls & Comparator \\\\ \\midrule\n")
         for label, cell in (
                 ("Live stratum / capture window",
                  lambda a: funnel[f"{a}_live"]),
@@ -343,7 +350,7 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                  lambda a: funnel[f"{a}_live"] - funnel[f"{a}_hosted"]),
                 ("Less registry-wildcard names",
                  lambda a: funnel[f"{a}_live"] - funnel[f"{a}_hosted"] - funnel[f"{a}_wildcard"]),
-                ("Label gate (blocklist / credential / content / lexical)",
+                ("Candidate screen (feed / form / language / lexical)",
                  lambda a: funnel[f"{a}_gate"]),
                 ("Resolving and serving TLS",
                  lambda a: funnel[f"{a}_conditioned"])):
@@ -636,7 +643,19 @@ def main() -> int:
     ap.add_argument("--smoke", action="store_true",
                     help="run the fitting path on label-permuted data, writing only to "
                          f"{SMOKE_DIR}/ — proves the machinery without touching the outcome")
+    # For the collector's cron. The monitoring half (funnel.csv, accrual.csv and the counts the
+    # data article prints) is idempotent and safe to run unattended; the fitting half is not, and
+    # not because the gate would let it through by accident -- it would not, the 2026-09-01
+    # amendment made a trusted-label file a precondition that only a person can satisfy. It is
+    # that the fit should happen when someone decides to run it, not at 03:05 on the first night
+    # after that file appears. This flag stops after the monitoring write.
+    ap.add_argument("--monitor-only", action="store_true",
+                    help="regenerate funnel.csv, accrual.csv and the monitoring counts, then "
+                         "stop: never fits a model, real or smoke")
     args = ap.parse_args()
+    if not args.monitor_only and not args.smoke:
+        print("P4 discontinued 2026-09-09; no outcome analysis is run. Use make live-labels for the independent live collection.")
+        return 0
     if not os.path.exists(INFRA):
         print(f"[i] {INFRA} absent — sync from the collector first.")
         return 0
@@ -647,7 +666,9 @@ def main() -> int:
     print(f"[+] dataset {DATASET} ({len(pop)} rows); monitoring assets regenerated "
           f"(phish {n}/{TRIGGER} toward trigger, benign[ct] {funnel['benign_conditioned']}, "
           f"comparator[tinnhiem] {funnel[f'{COMPARATOR_ARM}_conditioned']}, not pooled)")
-    if args.smoke:
+    if args.monitor_only:
+        print("[i] --monitor-only: monitoring assets written, no model fitted")
+    elif args.smoke:
         fit_main(pop, SMOKE_DIR, smoke=True)
     elif n >= TRIGGER and outcome_gate.unlocked:
         fit_main(trusted_pop, SECTIONS, smoke=False)

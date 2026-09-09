@@ -37,6 +37,7 @@ import json
 import os
 import re
 import socket
+from pathlib import Path
 import sys
 
 import pandas as pd
@@ -58,6 +59,7 @@ except ImportError:  # flat public-mirror layout
 # in which every importer worked and `python3 scripts/audit_capture_labels.py` raised
 # ModuleNotFoundError on both machines.
 from psl import apex  # noqa: E402
+from label_policy import feed_evidence, observable
 
 P4_DATASET = os.path.join("data", "processed", "infra", "infra_dataset.csv")
 DETECTIONS = os.path.join("data", "raw", "urlscan_brands", "detections.csv")
@@ -165,6 +167,8 @@ def wildcard_ips(suffix: str) -> frozenset[str]:
     suffix, read from the persisted probe file and asked of the network only for a suffix the
     file has never seen (see _load_caches). Empty set = the suffix does not wildcard."""
     _load_caches()
+    if suffix not in _WILDCARD_CACHE and not REPROBE:
+        return frozenset()
     if suffix not in _WILDCARD_CACHE:
         _WILDCARD_CACHE[suffix] = (_resolve(f"{_WILDCARD_PROBE_LABEL}.{suffix}")
                                    if suffix else frozenset())
@@ -174,6 +178,8 @@ def wildcard_ips(suffix: str) -> frozenset[str]:
 
 def _resolve_cached(domain: str) -> frozenset[str]:
     _load_caches()
+    if domain not in _LIVE_RESOLVE_CACHE and not REPROBE:
+        return frozenset()
     if domain not in _LIVE_RESOLVE_CACHE:
         _LIVE_RESOLVE_CACHE[domain] = _resolve(domain)
         _LIVE_RESOLVE_ON[domain] = _today()
@@ -183,10 +189,10 @@ def _resolve_cached(domain: str) -> frozenset[str]:
 def is_registry_wildcard(domain: str, recorded_ips: frozenset[str] | None = None) -> bool:
     """Does this name exist only as its registry's wildcard answer?
 
-    Prefers capture-time recorded addresses, resolving live only when no recording exists. A
+    Prefers capture-time recorded addresses; uncached live queries require explicit reprobe. A
     registered domain parked on the registry's IP is excluded too -- its infrastructure is still the
-    registry's. Known miss: a parking address rotated since capture falls through to the lexical
-    verdicts, so this under-excludes, never over-excludes."""
+    registry's. A registered parked name can match too; shared addresses do not prove
+    non-registration or benignness. Rotation can also cause missed matches."""
     wc = wildcard_ips(_EXTRACT(str(domain)).suffix)
     if not wc:
         return False
@@ -218,8 +224,8 @@ def is_hosted_subdomain(domain: str) -> bool:
 
 
 def load_tranco() -> set[str]:
-    """Global top-100k plus the Vietnamese slice. A registrable domain that ranks is an
-    established site with real traffic; phishing domains are days old and unranked."""
+    """Global top-100k plus the Vietnamese slice. Ranking is a reputation signal,
+    not evidence that a host or URL is free of phishing."""
     out: set[str] = set()
     for path in (os.path.join("data", "external", "tranco_top100k.csv"),
                  os.path.join("data", "raw", "tranco_vn", "benign.csv")):
@@ -268,6 +274,20 @@ def load_allowlists() -> set[str]:
         # partner, fintech integration & legitimate educational/career platforms
         "sobanhang.com", "truedoc.vn", "siten.vn", "bluestar.com.vn", "nghebanker.com",
         "hairbank.net", "honguyenvietnam.org", "isb.vn",
+        "jobfinance.vn", "dinhlucsoccer.vn",
+        # telecom, insurance partner & official remittance portals
+        "vnpthub.vn", "pvi-partners.com.vn", "sacombank-sbr.com.vn",
+        "microsoft-vinaphone.vn", "ivan.vn", "labs.com.vn",
+        # official corporate portals & tech units
+        "viettelsecurity.com", "vnptai.io", "sacombank-sbj.com",
+        "dienluctkv.vn", "mobifone8.com.vn", "mobifone8.vn",
+        "icdt.vn", "viettelmydata.vn", "viettel-ict.com.vn",
+        # polysemic & educational / technology / domain sales platforms
+        "quamon.vn", "testbank.vn", "abcm.vn", "xtracking.vn",
+        "banker.org.vn", "ibank.com.vn", "investor.pro.vn",
+        # fintech, payment soundbox & partner platforms
+        "loatingting.vn", "loathanhtoan.com.vn", "quikpay.vn",
+        "etsdata.vn", "govi.ai.vn",
         # notary, technology & industrial compound entities
         "dichvucongchung.com.vn", "dichvucongchung.org", "dichvucongnghe.io.vn",
         "dichvucongnghiephc.vn", "xaydungvadichvucongnghiepvanan.com", "dichvucongtybacninh.vn",
@@ -280,37 +300,22 @@ def load_allowlists() -> set[str]:
 
 
 def load_blocklists() -> dict[str, set[str]]:
-    """The three independent phishing sources already on disk. Matching is at registrable-domain
-    granularity so a blocklisted hostname corroborates its parent registration."""
-    lists: dict[str, set[str]] = {}
-    cld = os.path.join("data", "raw", "chongluadao_live", "seen_domains.txt")
-    try:
-        with open(cld, encoding="utf-8") as f:
-            lists["chongluadao"] = {registrable(x.strip()) for x in f if x.strip()}
-    except OSError:
-        pass
-    for name, path, col in (
-            ("openphish", os.path.join("data", "raw", "openphish", "feed.csv"), None),
-            ("tinnhiemmang", os.path.join("data", "raw", "tinnhiemmang", "blacklist_hist.csv"), None)):
-        try:
-            df = pd.read_csv(path, on_bad_lines="skip", low_memory=False)
-        except OSError:
-            continue
-        hosts: set[str] = set()
-        for c in df.columns:
-            if col and c != col:
-                continue
-            s = df[c].astype(str)
-            if s.str.contains(".", regex=False, na=False).mean() > 0.5:
-                hosts |= {registrable(x.replace("https://", "").replace("http://", "").split("/")[0])
-                          for x in s}
-        lists[name] = {h for h in hosts if h}
+    """Historical exact-host reports; no parent-domain or sibling propagation.
+
+    URL-scoped feeds remain in the evidence ledger and cannot confirm a hostname.
+    A match does not establish source independence or capture-time maliciousness.
+    """
+    evidence, _ = feed_evidence(Path(ROOT))
+    lists = {}
+    for host, records in evidence.items():
+        for record in records:
+            if record['scope'] == 'hostname':
+                lists.setdefault(record['source'], set()).add(host)
     return lists
 
 
-# A rendered password input -- the strongest content evidence here: a page ASKING for a credential
-# is doing the thing the study is about, whatever its language. Matched on the stored DOM, so a
-# form assembled by JavaScript after capture is missed: under-admits, never over-admits.
+# A password input is only a candidate signal. Legitimate login forms also match;
+# a regex over saved markup does not establish visibility, impersonation or exfiltration.
 CRED_INPUT = re.compile(r"type\s*=\s*[\"']?password", re.I)
 
 
@@ -353,13 +358,13 @@ def content_evidence() -> dict[str, dict[str, bool]]:
 def load_content_map(path: str) -> dict[str, dict[str, bool]]:
     """Content evidence computed elsewhere: captures live on the Jetson, exclusion lists (Tranco
     especially) on the Mac -- running the whole audit on the Jetson disables every exclusion and
-    promotes `sepay.vn`/`vnptpay.vn` to "content_confirmed", the exact error this script exists to
+    promotes `sepay.vn`/`vnptpay.vn` to "vietnamese_content", the exact error this script exists to
     catch. Hence `--export-content` on the collector, `--content-map` here. Maps exported before
     2026-08-16 lack credential_form; that evidence loads as absent, never guessed."""
     df = pd.read_csv(path)
     has_cred = "credential_form" in df.columns
-    return {r["registered_domain"]: {"renders_vietnamese": bool(r["renders_vietnamese"]),
-                                     "credential_form": bool(r["credential_form"]) if has_cred
+    return {r["registered_domain"]: {"renders_vietnamese": str(r["renders_vietnamese"]).strip().lower() in {"1", "true", "yes"},
+                                     "credential_form": str(r["credential_form"]).strip().lower() in {"1", "true", "yes"} if has_cred
                                      else False}
             for _, r in df.iterrows()}
 
@@ -369,13 +374,14 @@ def audit(domains: list[str], use_content: bool = False,
           ipmap: dict[str, frozenset[str]] | None = None) -> pd.DataFrame:
     tranco, allow, blocks = load_tranco(), load_allowlists(), load_blocklists()
     if not tranco:
-        print("[!] Tranco lists absent — every exclusion is disabled. Results are NOT valid; "
+        print("[!] Tranco lists absent — reputation screening is incomplete; "
               "run on the analysis host, or pass --content-map from the collector.",
               file=sys.stderr)
     content = content_map if content_map is not None else (content_evidence() if use_content else {})
     ipmap = ipmap or {}
     rows = []
     for d in sorted(set(domains)):
+        d = observable(d)[0]
         hits = [name for name, s in blocks.items() if d in s]
         in_tranco, in_allow = d in tranco, d in allow
         ev = content.get(d)
@@ -388,15 +394,15 @@ def audit(domains: list[str], use_content: bool = False,
         if is_hosted_subdomain(d):
             verdict = "hosted_subdomain"
         elif in_tranco or in_allow:
-            verdict = "excluded_legitimate"
+            verdict = "reputation_screened"
         elif is_registry_wildcard(d, ipmap.get(d)):
             verdict = "registry_wildcard"
         elif hits:
-            verdict = "corroborated"
+            verdict = "historical_feed_match"
         elif pw:
             verdict = "credential_form"
         elif vi:
-            verdict = "content_confirmed"
+            verdict = "vietnamese_content"
         elif lex:
             verdict = "vn_lexical"
         elif vi is None and (use_content or content):
@@ -407,8 +413,14 @@ def audit(domains: list[str], use_content: bool = False,
                      "in_allowlist": int(in_allow), "blocklists": ",".join(hits),
                      "renders_vietnamese": "" if vi is None else int(vi),
                      "credential_form": "" if pw is None else int(pw),
-                     "vn_lexical": int(lex)})
-    write_wildcard_probe()
+                     "vn_lexical": int(lex),
+                     "label_status": ("conflict" if hits and (in_tranco or in_allow) else
+                                      "feed_reported" if hits else
+                                      "candidate" if (pw or vi or lex) else "unknown"),
+                     "label": "unknown", "training_eligible": 0,
+                     "policy_version": "2.0.0"})
+    if REPROBE:
+        write_wildcard_probe()
     return pd.DataFrame(rows)
 
 
@@ -506,9 +518,9 @@ def main() -> int:
                 ipmap=ipmap)
     res.to_csv(OUT, index=False)
 
-    order = ("corroborated", "credential_form", "content_confirmed", "vn_lexical",
+    order = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical",
              "uncorroborated", "no_capture",
-             "excluded_legitimate", "hosted_subdomain", "registry_wildcard")
+             "reputation_screened", "hosted_subdomain", "registry_wildcard")
     n = len(res)
     print(f"[i] scope: {scope} -> {n} registrable domains\n")
     for verdict in order:

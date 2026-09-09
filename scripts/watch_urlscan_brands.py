@@ -84,7 +84,7 @@ DEFAULT_TOKENS = [
     # e-wallets, payment & fintech
     "zalopay", "vnpay", "viettelmoney", "viettelpay", "shopeepay", "napas247",
     # utilities: electricity & water bills (EVN)
-    "cskhevn", "dienluctphcm", "dienluchanoi",
+    "cskhevn", "dienluctphcm", "dienluchanoi", "evnquocgia", "dienluc", "evnspc", "evnnpc", "evnhcm",
     # telecom / carriers & SIM registration / 5G
     "viettel", "vinaphone", "mobifone", "vnpt", "fptshop", "fpttelecom",
     "chuanhoathuebao", "khoathuebao", "nangcapsim", "sim5g", "thuebaovn",
@@ -251,6 +251,7 @@ def load_official() -> set[str]:
                 # enterprise partners, software vendors & legitimate organisations
                 "sobanhang.com", "truedoc.vn", "siten.vn", "bluestar.com.vn",
                 "nghebanker.com", "hairbank.net", "honguyenvietnam.org", "isb.vn",
+                "jobfinance.vn", "dinhlucsoccer.vn",
                 # notary, technology & industrial compound entities
                 "dichvucongchung.com.vn", "dichvucongchung.org", "dichvucongchung.com", "dichvucongchung.info",
                 "dichvucongnghe.net", "dichvucongnghe.io.vn", "dichvucongnghiephc.vn", "dichvucongnghiepdl.com",

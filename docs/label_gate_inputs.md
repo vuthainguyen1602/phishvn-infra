@@ -1,3 +1,13 @@
+> **Review preparation, 9 September 2026:** The previous outcome study was discontinued. The
+> trigger-based release plan below is historical, not a satisfied release gate.
+> The core archive preserves the manuscript snapshot. A separate live-label
+> supplement carries source-derived labels; neither archive claims completed human
+> validation. Final release version and reviewer access remain pending.
+
+> **Label policy updated 8 September 2026:** see [v2 policy](label_policy_v2.md).
+> The counts and screen terminology below document the historical v1 snapshot;
+> reputation and heuristic signals are not verified outcome labels.
+
 # What the label gate reads besides the capture log
 
 `audit_capture_labels.audit()` decides which phishing candidates are admitted, and it consults

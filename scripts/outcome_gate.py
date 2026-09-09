@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import hashlib
+from pathlib import Path
+
+from label_policy import observable
 
 import pandas as pd
 
@@ -17,6 +21,8 @@ OUTCOME_LABELS = "data/processed/infra/p4_outcome_labels.csv"
 REQUIRED_COLUMNS = (
     "registered_domain", "annotator_a", "annotator_b", "adjudicated_label",
     "positive_evidence", "blinded_to_infrastructure", "blinded_to_model",
+    "annotator_a_id", "annotator_b_id", "evidence_url", "evidence_path", "evidence_sha256",
+    "observed_from", "observed_until", "benign_evidence",
 )
 ANNOTATIONS = {"phishing", "benign", "unsure"}
 FINAL_LABELS = {"phishing", "benign"}
@@ -99,6 +105,38 @@ def trusted_positive_population(
         return locked("every positive requires trusted positive evidence",
                       n_reviewed=len(labels), n_resolved=len(labels))
 
+    # Version 2: an evidence enum alone is not an auditable review. Validate the
+    # artifact, exact captured hostname and time interval; controls require review too.
+    if (labels["annotator_a_id"].eq("").any() or labels["annotator_b_id"].eq("").any()
+            or labels["annotator_a_id"].eq(labels["annotator_b_id"]).any()):
+        return locked("two distinct identified reviewers are required")
+    if not {"domain", "captured_at"}.issubset(pop.columns):
+        return locked("population lacks exact hostname/capture time for evidence matching")
+    pop_keys = pop.assign(_key=pop["registered_domain"].astype(str).str.lower().str.strip("."))
+    for row in labels.itertuples(index=False):
+        artifact = Path(row.evidence_path)
+        if (not artifact.is_file() or not row.evidence_sha256
+                or hashlib.sha256(artifact.read_bytes()).hexdigest() != row.evidence_sha256):
+            return locked("review evidence artifact absent or hash mismatch")
+        host, url = observable(row.evidence_url)
+        if not url:
+            return locked("review requires an exact evidence URL")
+        start = pd.to_datetime(row.observed_from, errors="coerce", utc=True)
+        end = pd.to_datetime(row.observed_until, errors="coerce", utc=True)
+        if pd.isna(start) or pd.isna(end) or end < start:
+            return locked("review requires a valid observed time interval")
+        selected = pop_keys[pop_keys["_key"] == row.registered_domain]
+        for captured in selected.itertuples(index=False):
+            if observable(captured.domain)[0] != host:
+                return locked("review host differs from captured host; no parent/sibling propagation")
+            stamp = pd.Timestamp(captured.captured_at)
+            if stamp.tzinfo is None:
+                stamp = stamp.tz_localize("Asia/Ho_Chi_Minh")
+            if not start <= stamp.tz_convert("UTC") <= end:
+                return locked("capture falls outside reviewed observation interval")
+        if row.final_label == "benign" and not row.benign_evidence.strip():
+            return locked("negative outcomes require reviewed benign evidence")
+
     candidate_domains = set(candidates["registered_domain"].astype(str).str.lower().str.strip("."))
     current = labels[labels["registered_domain"].isin(candidate_domains)].copy()
     pos_domains = set(current.loc[current["final_label"].eq("phishing"), "registered_domain"])
@@ -112,5 +150,13 @@ def trusted_positive_population(
 
     keep_phish = candidates[
         candidates["registered_domain"].astype(str).str.lower().str.strip(".").isin(pos_domains)]
-    trusted = pd.concat([keep_phish, pop[pop["arm"] != "phish"]], ignore_index=True)
+    negatives = set(labels.loc[labels["final_label"].eq("benign"), "registered_domain"])
+    controls = pop[(pop["arm"] == "benign") &
+                   pop["registered_domain"].astype(str).str.lower().str.strip(".").isin(negatives)]
+    if controls.empty:
+        return locked("no independently reviewed benign controls", **common)
+    trusted = pd.concat([keep_phish, controls], ignore_index=True)
+    trusted["label"] = trusted["arm"].map({"phish": "phishing", "benign": "benign"})
+    trusted["label_status"] = trusted["arm"].map({"phish": "confirmed_phishing", "benign": "verified_benign"})
+    trusted["training_eligible"] = 1
     return trusted, OutcomeGate(True, "trusted-positive unlock satisfied", n_candidates, **common)

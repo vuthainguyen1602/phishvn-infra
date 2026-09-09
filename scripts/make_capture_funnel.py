@@ -6,7 +6,7 @@ WHY THESE TWO TOGETHER. Both answer the question a time-stamped pre-specified de
 answers badly: is this study going to have a population, and where did the candidates go?
 `tab_audit` prints the counts but cannot show that the cuts are wildly unequal, and that the
 biggest by far is not a design choice but the registry-wildcard artefact of
-Section~\\ref{ssec:wildcard} — names nobody ever registered, answered for by the registry.
+Section~\\ref{ssec:wildcard} — names with addresses compatible with the stored wildcard probe.
 
 The accrual panel is the honest version of the progress sentence: `gen_progress` states the count
 and the fraction of the trigger, and a reader's next question is when the trigger fires — an
@@ -68,9 +68,9 @@ def funnel_rows(funnel: dict) -> list[dict]:
     after_wild = after_hosted - funnel["phish_wildcard"]
     stages = [
         ("live-stratum candidates", live, ""),
-        ("less hosted subdomains", after_hosted, "no registration of their own"),
-        ("less registry wildcards", after_wild, "names nobody registered"),
-        ("label gate", funnel["phish_gate"], "positive evidence required"),
+        ("less hosted subdomains", after_hosted, "provider-level registration features"),
+        ("less registry wildcards", after_wild, "wildcard-compatible addresses; not a label"),
+        ("label gate", funnel["phish_gate"], "screening reason required; outcome unknown"),
         ("resolving, serving TLS", funnel["phish_conditioned"], "the study population"),
     ]
     out, prev = [], None

@@ -71,8 +71,8 @@ CONTENT_MAP_CSV = os.path.join(INTERIM, "content_map.csv")
 VN_SUPP_CSV = os.path.join(ROOT, "data", "raw", "ct_benign_vn", "detections.csv")
 P1_URL_CSV = os.path.join(PROC, "dataset_url.csv")
 VN_SUPP_START = "2026-08-21"   # the amendment that registered the .vn supplement (PREREG)
-VERDICTS = ("corroborated", "credential_form", "content_confirmed", "vn_lexical",
-            "uncorroborated", "no_capture", "excluded_legitimate", "hosted_subdomain",
+VERDICTS = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical",
+            "uncorroborated", "no_capture", "reputation_screened", "hosted_subdomain",
             "registry_wildcard")
 ADMIT_VERDICTS = frozenset(VERDICTS[:4])
 
@@ -106,13 +106,15 @@ DEPOSIT = [
     ("data/host_infra.csv", os.path.join(ROOT, INFRA), "rows",
      "Every capture row, all sources (25 columns)"),
     ("data/infra_dataset.csv", DATASET_CSV, "rows",
-     "Conditioned population, arm and verdict (15 columns)"),
+     "Conditioned candidates/controls and label policy (20 columns)"),
     ("data/funnel.csv", FUNNEL_CSV, "rows", "Phishing-arm funnel: stage, surviving, removed"),
     ("data/accrual.csv", ACCRUAL_CSV, "rows", "Cumulative admitted domains by detection day"),
     ("data/label_audit.csv", LABEL_AUDIT_CSV, "rows",
      "Verdict, evidence flags, removal stage per candidate"),
     ("data/wildcard_probe.csv", PROBE_CSV, "rows",
      "Wildcard probe: suffix, probe name, date, answers"),
+    ("data/live_resolve_cache.csv", os.path.join(PROC, "infra", "live_resolve_cache.csv"), "rows",
+     "Per-candidate fallback DNS answers, lookup date and resolver"),
     # The abstract has always said this ships. It did not, and without it the label gate cannot
     # award content_confirmed, so a reader reproducing the population got 107 admitted domains
     # where the paper reports 215. Two boolean flags per domain, no page content.
