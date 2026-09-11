@@ -28,6 +28,15 @@ from content_signals import analyze, registry, host, VERSION
 ROOT = Path(__file__).resolve().parents[3]
 OUT = ROOT / 'data/processed/live_content'
 IMAGE = 'phishvn-content:v1'
+# Hours after first detection within which a capture still speaks to the observation.
+FRESH_HOURS = 48
+# Every observation, not only the unresolved ones. This tool began as a way to give UNKNOWN
+# hosts a label, so it read live_labels/review_queue.csv, which holds exactly the rows whose
+# label is not usable. Validating a source label needs the opposite: the only admissible
+# evidence about what a host served is a capture taken near the observation, and the review
+# protocol refuses a visit made later. The labelled strata are therefore inspected too, and the
+# analysis produced for them is withheld from annotators by export_blinded_evidence.py.
+QUEUE = ROOT / 'data/processed/live_labels/observations.csv'
 
 
 def public_addresses(url):
@@ -144,32 +153,59 @@ def capture(url, directory, docker, timeout=75, fixture=None):
     return result
 
 
-def candidates(path, latest, limit, retry_hours):
+def detected_epoch(row):
+    """First-detection stamp as an epoch. The column is naive LOCAL time, so it is
+    parsed without a timezone; 0 stands for absent or unparseable."""
+    raw = (row.get('first_detected') or row.get('captured_at') or '').strip()
+    if not raw:
+        return 0.0
+    try:
+        return datetime.fromisoformat(raw[:19].replace(' ','T')).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def candidates(path, latest, limit, retry_hours, fresh_hours=FRESH_HOURS):
     rows = {}
     for r in csv.DictReader(path.open(encoding='utf-8',newline='')):
-        if r.get('label') != 'unknown': continue
         hostname = r.get('hostname_key') or host(r.get('domain',''))
         if not hostname: continue
-        rows[hostname] = r
+        # One row per host, the EARLIEST sighting. The queue is observation-level, so keeping
+        # the last row read would date a host by its most recent observation and make an old
+        # host look new to the freshness ordering below.
+        previous = rows.get(hostname)
+        if previous is None:
+            rows[hostname] = r
+        else:
+            new_epoch, old_epoch = detected_epoch(r), detected_epoch(previous)
+            if old_epoch == 0 or (new_epoch and new_epoch < old_epoch):
+                rows[hostname] = r
     now = time.time()
     eligible = []
     for hostname, row in rows.items():
         previous = latest.get(hostname)
         if previous and now - previous['checked_epoch'] < retry_hours * 3600:
             continue
-        eligible.append((hostname,row))
+        eligible.append((hostname,row,detected_epoch(row)))
     def risk(row):
         try:
             return int(row.get('candidate_risk_score') or 0)
         except ValueError:
             return 0
-    eligible.sort(key=lambda pair: (pair[0] in latest,
-        -risk(pair[1]),
-        pair[1].get('source') not in {'ct_brands','urlscan_brands'},
-        not bool(re.search(r'bank|vietcom|bidv|shopee|lazada|dichvucong|bocongan|vneid', pair[0])),
-        pair[1].get('tls_present') != '1',
-        latest.get(pair[0],{}).get('checked_epoch',0), pair[0]))
-    return eligible[:limit], len(rows)
+    # A capture is only evidence about the label if it happens near the observation, and the
+    # backlog is large enough that arrivals used to wait a median of 19 days behind it. Hosts
+    # first detected inside the window therefore go ahead of the backlog, newest first; within
+    # the backlog the brand-risk ordering below is unchanged.
+    fresh_cutoff = now - fresh_hours * 3600
+    eligible.sort(key=lambda item: (item[0] in latest,
+        item[2] < fresh_cutoff,
+        -item[2] if item[2] >= fresh_cutoff else 0,
+        -risk(item[1]),
+        item[1].get('source') not in {'ct_brands','urlscan_brands'},
+        not bool(re.search(r'bank|vietcom|bidv|shopee|lazada|dichvucong|bocongan|vneid', item[0])),
+        item[1].get('tls_present') != '1',
+        latest.get(item[0],{}).get('checked_epoch',0), item[0]))
+    return [(hostname,row) for hostname,row,_ in eligible[:limit]], len(rows)
 
 
 def reports(latest, out):
@@ -205,6 +241,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--limit',type=int,default=50)
     parser.add_argument('--retry-hours',type=int,default=168)
+    parser.add_argument('--queue',type=Path,default=QUEUE)
     parser.add_argument('--sudo-docker',action='store_true')
     parser.add_argument('--self-test',action='store_true')
     args = parser.parse_args()
@@ -228,8 +265,8 @@ def main():
                    for p in Path(__file__).parent.glob('*.py')}
     state_path = OUT / 'latest.json'
     latest = json.loads(state_path.read_text()) if state_path.exists() else {}
-    selected, total = candidates(ROOT / 'data/processed/live_labels/review_queue.csv',latest,args.limit,args.retry_hours)
-    print(json.dumps({'eligible_selected':len(selected),'unknown_hosts':total}),flush=True)
+    selected, total = candidates(args.queue,latest,args.limit,args.retry_hours)
+    print(json.dumps({'eligible_selected':len(selected),'queued_hosts':total}),flush=True)
     for hostname, row in selected:
         checked = datetime.now(timezone.utc)
         uid = checked.strftime('%Y%m%dT%H%M%S') + '-' + hashlib.sha256(hostname.encode()).hexdigest()[:16]
