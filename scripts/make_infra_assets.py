@@ -77,6 +77,12 @@ TRIGGER, CONFIRM = 500, 1000
 # Every screen class remains an unknown outcome: an arm of unknowns measures token co-occurrence.
 CANDIDATE_VERDICTS = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical")
 BENIGN_SOURCE = "ct_benign"
+# Floor for SAYING a `.vn` contrast is supported. A REPORTING floor, chosen as a round rule of
+# thumb, not an inferential threshold: clearing it licenses the sentence, never the inference, and
+# whatever contrast is eventually drawn still needs its own interval. Both arms must clear it,
+# because the smaller one is what binds -- 1,502 benign against 8 phishing supports nothing that
+# 8 alone does not.
+VN_CONTRAST_MIN = 10
 # The .vn supplement of the matched arm (PREREG amendment 2026-08-21): its own source, admitted to
 # the SAME arm under the same conditioning, but it may fill .vn cells only, and is never pooled.
 SUPPLEMENT_SOURCE = "ct_benign_vn"
@@ -297,6 +303,11 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
     # The benign arm's own .vn count. Calling ct_benign "TLD-matched" while never reporting it let a
     # degenerate case pass unstated: the arm holds zero .vn, so on the .vn slice -- where the
     # artefact this design neutralises actually lives -- there is nothing to match against.
+    # The 2026-08-21 supplement fixed that arm and opened the MIRROR of it. Both readings are
+    # degenerate and only one of them used to be caught, because the test asked which arm was
+    # larger instead of whether the smaller one carried anything: at 1,502 benign against 8
+    # phishing, `be_vn < n_vn` is false and the old else-branch called both pools supportive of
+    # the registry group. They are not. Report the BINDING arm, whichever side it falls on.
     be_vn = int(pop[(pop["arm"] == "benign")]["registered_domain"]
                 .astype(str).str.endswith(".vn").sum())
     _, outcome_gate = trusted_positive_population(pop, TRIGGER)
@@ -312,7 +323,14 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                    f"so for that ${round(100 * n_vn / max(n_ph, 1))}\\%$ of the phishing arm the "
                    f"artefact is not matched away but simply unmatched, and any \\texttt{{.vn}} "
                    f"contrast is out of reach until the benign feed supplies them. "
-                   if be_vn < n_vn else
+                   if be_vn < VN_CONTRAST_MIN else
+                   f"The benign arm holds ${be_vn}$ \\texttt{{.vn}} domains against the phishing "
+                   f"arm's ${n_vn}$. The phishing side is what binds, and at ${n_vn}$ it does not "
+                   f"support a \\texttt{{.vn}} contrast: the registry gate that gives this study "
+                   f"its \\texttt{{.vn}} arm is the same gate that keeps phishing off "
+                   f"\\texttt{{.vn}}, so the shortfall is a property of the population and not a "
+                   f"sampling gap a larger benign feed would close. "
+                   if n_vn < VN_CONTRAST_MIN else
                    f"The benign arm holds ${be_vn}$ \\texttt{{.vn}} domains against the phishing "
                    f"arm's ${n_vn}$, so both pools support the registry group; age-cell coverage "
                    f"and residual source differences still require assessment. ")

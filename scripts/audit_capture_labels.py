@@ -223,6 +223,32 @@ def is_hosted_subdomain(domain: str) -> bool:
     return any(domain.endswith("." + s) for s in HOSTED_SUFFIXES)
 
 
+# VNNIC gates `.vn` behind legal-entity or citizen documentation, which inverts the base rate for
+# EVERY signal a page can emit about itself. The paperwork makes a real business the likelier
+# registrant of `viettelmoney.com.vn` or `vietinbankgold.vn` than a phisher; Vietnamese SMEs sit
+# outside Tranco, so `in_tranco == 0` screens none of them back out; a registered business with a
+# login page is a business with a login page, which is why `credential_form` is no safer here than
+# `renders_vietnamese` -- its own comment already calls it only a candidate signal. Under a gated
+# suffix, third-party corroboration is the only admissible evidence.
+# The repository measured this twice before the guard existed. 2026-08-03, in make_infra_assets:
+# "of 32 conditioned .vn phishing domains, zero blocklist-corroborated, ten (31%) verifiably
+# legitimate (bidv.vn, viettelpost.vn, sepay.vn...)". 2026-09-12: of 17 admitted `.vn`, the 9 with
+# a `vn_phishing_live` hit are transparent Facebook typosquats and the 8 without one are
+# `vietinbankgold.vn`, `viettel-cloud.com.vn`, `vaytienonline365.vn` and the like -- no feed, any
+# feed, ever reported them. It is the error load_content_map's docstring names with `sepay.vn` /
+# `vnptpay.vn`, reached by a second route: the suffix rather than the host the audit ran on.
+# `id.vn` and `io.vn` are the exceptions: they sell cheaply without the entity check, so they keep
+# the ordinary rule. Matched on the NAME, never on `_EXTRACT(...).suffix` -- tldextract 3.2.0 and
+# 5.3.1 disagree about whether those two are public suffixes (the 2026-08-24 grouping bug), and a
+# guard that changes with the installed version is not a guard.
+UNGATED_VN_SUFFIXES = (".id.vn", ".io.vn")
+
+
+def is_registry_gated_vn(domain: str) -> bool:
+    d = str(domain).lower()
+    return d.endswith(".vn") and not d.endswith(UNGATED_VN_SUFFIXES)
+
+
 def load_tranco() -> set[str]:
     """Global top-100k plus the Vietnamese slice. Ranking is a reputation signal,
     not evidence that a host or URL is free of phishing."""
@@ -399,6 +425,10 @@ def audit(domains: list[str], use_content: bool = False,
             verdict = "registry_wildcard"
         elif hits:
             verdict = "historical_feed_match"
+        # Placed directly under the blocklist test, which is the point: corroboration still
+        # admits under a gated suffix, and nothing the page says about itself does.
+        elif is_registry_gated_vn(d) and (pw or vi or lex):
+            verdict = "vn_registry_gated"
         elif pw:
             verdict = "credential_form"
         elif vi:
@@ -519,7 +549,7 @@ def main() -> int:
     res.to_csv(OUT, index=False)
 
     order = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical",
-             "uncorroborated", "no_capture",
+             "vn_registry_gated", "uncorroborated", "no_capture",
              "reputation_screened", "hosted_subdomain", "registry_wildcard")
     n = len(res)
     print(f"[i] scope: {scope} -> {n} registrable domains\n")

@@ -72,9 +72,12 @@ VN_SUPP_CSV = os.path.join(ROOT, "data", "raw", "ct_benign_vn", "detections.csv"
 P1_URL_CSV = os.path.join(PROC, "dataset_url.csv")
 VN_SUPP_START = "2026-08-21"   # the amendment that registered the .vn supplement (PREREG)
 VERDICTS = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical",
-            "uncorroborated", "no_capture", "reputation_screened", "hosted_subdomain",
-            "registry_wildcard")
-ADMIT_VERDICTS = frozenset(VERDICTS[:4])
+            "vn_registry_gated", "uncorroborated", "no_capture", "reputation_screened",
+            "hosted_subdomain", "registry_wildcard")
+# Named, not sliced. `VERDICTS[:4]` put the admit set one careless insertion away from admitting
+# whatever landed at index 4 -- which is now `vn_registry_gated`, a REMOVAL reason.
+ADMIT_VERDICTS = frozenset({"historical_feed_match", "credential_form",
+                            "vietnamese_content", "vn_lexical"})
 
 SOURCE_LABEL = {
     "vn_phishing_live": ("phish", "national blacklist, live poll"),

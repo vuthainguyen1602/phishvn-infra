@@ -23,6 +23,7 @@ except ImportError:
     ROOT = os.path.dirname(_HERE)
 from label_policy import observable
 from psl import registered_domain
+from hosting import classify as classify_hosting, infra_scope, PROVIDER_OWNED
 
 ROOT = Path(ROOT)
 VERSION = 'live-source-tiers-2026-09-09'
@@ -164,6 +165,33 @@ def snapshot(path):
     return rows, {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data), 'rows': len(rows)}
 
 
+def scan_id(row, host):
+    """A stable name for one acquisition: this host, from this source, at this capture time.
+
+    The unit of observation in this collection is a scan, not a host, because a host observed
+    twice is two acquisitions whose evidence can differ. `observation_row` already existed but is
+    a position in the file, so it moves whenever rows are added ahead of it and cannot be cited.
+    This is derived from the row's own content, so it is the same identifier before and after a
+    rebuild, and an artifact or a review verdict can be attached to the acquisition it came from.
+    """
+    parts = (row.get('source', ''), host, row.get('captured_at', ''), str(row.get('attempt', '')))
+    return hashlib.sha256('|'.join(parts).encode()).hexdigest()[:20]
+
+
+def hosting_fields(host):
+    """Which stratum the name sits in, and whose properties its infrastructure fields describe.
+
+    Nothing is blanked. A row on a platform keeps its A record and its WHOIS; `infra_scope` says
+    those belong to the platform, so an analysis compares within a stratum instead of attributing
+    Cloudflare's registration age to whoever put the page there.
+    """
+    hosting_class, rule, apex = classify_hosting(host)
+    scope = infra_scope(hosting_class)
+    return {'hosting_class': hosting_class, 'hosting_rule': rule, 'hosting_apex': apex,
+            'infra_scope': scope,
+            'provider_owned_fields': ';'.join(PROVIDER_OWNED) if scope == 'provider' else ''}
+
+
 def decision(source, host, reports):
     labels = {r['label'] for r in reports}
     inherited, tier = SOURCES.get(source, ('unknown', 'unverified'))
@@ -240,6 +268,7 @@ def main():
                        'candidate' if label == 'unknown' else 'source_labelled',
                    independently_verified=0,
                    evidence_ids=';'.join(r['evidence_id'] for r in reports),
+                   scan_id=scan_id(row, host), observation_unit='scan_host_source_capturetime',
                    observation_row=number, policy_version=VERSION,
                    label_time_scope='source_report_only_not_current_page_confirmation',
                    binary_label_usable=int(label in {'phishing', 'benign'}),
@@ -248,6 +277,7 @@ def main():
                    content_checked_at=inspection.get('checked_at', ''),
                    content_evidence_path=inspection.get('evidence_path', ''),
                    content_scope='current_root_page_only_not_historical_label',
+                   **hosting_fields(host),
                    candidate_risk_score=risk_score,
                    candidate_risk_level=risk_level,
                    candidate_review_priority=risk_priority,

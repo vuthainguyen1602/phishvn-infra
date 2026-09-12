@@ -137,7 +137,15 @@ for f in $files; do
     done
   done <<EOSYM
 $(grep -hoE '^from [A-Za-z_][A-Za-z0-9_]* import [A-Za-z_][A-Za-z0-9_, ]*' "$f" \
-  | tr ',' ' ' | awk '{ printf "%s", $2; for (i = 4; i <= NF; i++) printf " %s", $i; print "" }')
+  | tr ',' ' ' | awk '{ printf "%s", $2
+                        # `from hosting import classify as classify_hosting` names ONE symbol, and
+                        # it is the one on the left. Taking every token reported `hosting.as` and
+                        # `hosting.classify_hosting` missing for five weeks against a hosting.py
+                        # that was byte-identical on both machines -- a permanent false alarm in
+                        # the check that exists to catch a real dropped import.
+                        for (i = 4; i <= NF; i++) { if ($i == "as") { i++; continue }
+                                                    printf " %s", $i }
+                        print "" }')
 EOSYM
 done
 [ "$missing" = 0 ] && echo "  all present"

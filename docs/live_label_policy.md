@@ -31,6 +31,47 @@ Run `make live-labels` locally. On Jetson, `scripts/ops/live_labels_run.sh`
 replaces the discontinued paper's monitoring job, with an independent lock and log.
 The collectors remain active; discontinuing the paper does not delete its data.
 
+## The benign arm is a curated reference class, not proof of benignness
+
+`tinnhiem_benign` is Vietnam's registry of certified organisations. Membership is evidence that
+someone vouched for the operator; it is not evidence that a given page was harmless at a given
+time, and no candidate in this arm has been screened against an independent malicious-URL service.
+The `gold` tier records that the source is a certifying authority rather than a community report.
+It does not record verification: `independently_verified` is 0 on every row of this collection.
+
+Three measured properties bound what the arm can support. State them wherever it is compared
+against the phishing arms.
+
+1. **It is institution-heavy by construction.** Among benign hosts presenting a certificate,
+   63.9% use a paid OV/EV certificate (GlobalSign 35.2%, DigiCert 28.7%) and only 20.4% use
+   Let's Encrypt, against 88.7% free DV on the phishing side. Certified organisations buy
+   certificates by policy. An ordinary Vietnamese small-business site would look like the
+   phishing arm on this axis, so a separation found here may be measuring organisation size.
+
+2. **It structurally cannot contain tenant pages.** 1 of 6,973 benign hosts is platform-hosted,
+   against 539 of 7,347 phishing hosts. The registry enumerates registered domains, so a
+   `pages.dev` subdomain could hardly appear in it. Any contrast on registration or transport
+   fields across the two arms is a sampling property; compare within `infra_scope` instead.
+
+3. **It is a static snapshot, so calendar time is not a two-class axis.** The list accrues no new
+   rows, while the phishing feeds accrue continuously. Do not compare the arms over time, and do
+   not read a trend from their relative sizes on any date.
+
+A stronger arm would screen each candidate through an independent reputation service and still
+describe the result as a reference class. Until that screening exists, the arm is a comparison
+group of certified organisations and must be named as one.
+
+## Evidence coverage is reported per layer, against its own denominator
+
+`scripts/evidence_coverage.py` writes `evidence_coverage.csv`: for every evidence
+layer, the share of scans on which it was observed, per class. Layers owned by whoever holds the
+apex are reported over the `infra_scope=operator` stratum only. A layer that was never fetched is
+missing, never a zero, and a class with no scans prints no percentage rather than 0%.
+
+The unit is a **scan**, not a host: `scan_id` names one acquisition of one host from one source at
+one capture time, derived from the row's own content so it survives a rebuild. A host observed
+twice is two scans whose evidence can differ.
+
 ## Content inspection (independent live collection)
 
 `data/processed/live_content/` contains current-root-page evidence and suggestions,
