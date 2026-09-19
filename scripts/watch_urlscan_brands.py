@@ -318,6 +318,67 @@ def is_official(domain: str, official: set[str]) -> bool:
     return any(d == o or d.endswith("." + o) for o in official)
 
 
+# --- scans this project submitted are not discoveries -------------------------------------------
+# The search runs with the project's API key, and urlscan returns a key's own unlisted scans to
+# it. Any other tool that submits with the same key therefore feeds this one: measured
+# 2026-09-19, 137 of 1,793 identities here had been "found" through a scan the project itself had
+# submitted hours earlier. Where the submitted name was a wildcard-parked typo domain, the scan
+# landed on the same name with `17.` or `ww17.` prepended, that new hostname carried the brand
+# token, it was recorded, enriched, submitted again by the downstream tool, and came back one
+# level deeper: `17.17.17.17.17.17.bidv.vercelapp.com`. One manufactured hostname per cycle.
+# The test is on PROVENANCE (whose scan is this?), never on what the page or the name looks like.
+# Which ledgers hold the project's scan ids is host-specific, so the list lives beside this file
+# in `own_scan_ledgers.local` (one CSV path per line, each with a `scan_uuid` column) and is not
+# part of the exported copy. No list, no filter -- and the run says so, every run.
+OWN_LEDGERS_FILE = os.path.join(_HERE, "own_scan_ledgers.local")
+SELF_FIELDS = ["domain", "brand", "scan_uuid", "task_url", "scan_time", "seen_at", "ledger"]
+
+
+def own_scan_ids(list_path: str = None) -> dict[str, str]:
+    """scan id -> the ledger that claims it. Empty when no ledger list is present."""
+    list_path = list_path or OWN_LEDGERS_FILE
+    own: dict[str, str] = {}
+    if not os.path.exists(list_path):
+        return own
+    with open(list_path, encoding="utf-8") as lf:
+        paths = [l.strip() for l in lf if l.strip() and not l.lstrip().startswith("#")]
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        with open(path, newline="", encoding="utf-8", errors="replace") as f:
+            for r in csv.DictReader(f):
+                u = (r.get("scan_uuid") or "").strip()
+                if u:
+                    own.setdefault(u, path)
+    return own
+
+
+SELF_REPORT = os.path.join("data", "processed", "infra", "self_induced_hosts.csv")
+_PREPENDED = re.compile(r"^(?:ww\d{0,3}|\d{1,3})\.")
+
+
+def report_self_induced(det_path: str, out_path: str = SELF_REPORT) -> tuple[int, int]:
+    """Which identities ALREADY in detections.csv were reached through one of the project's own
+    scans. The filter above only acts from the day it was deployed; the rows written before it are
+    never rewritten, so this is how a reader of the data separates them. It ships in the deposit,
+    so it carries hostnames and nothing else: not which tool made the scan, and not the scan id,
+    which would open an unlisted scan to whoever holds it."""
+    own = own_scan_ids()
+    with open(det_path, newline="", encoding="utf-8", errors="replace") as f:
+        rows = list(csv.DictReader(f))
+    hit = [r for r in rows if (r.get("scan_uuid") or "").strip() in own]
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    tmp = out_path + ".tmp"
+    with open(tmp, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["domain", "first_detected", "prepended_label"])
+        w.writeheader()
+        for r in sorted(hit, key=lambda r: (r.get("first_detected", ""), r["domain"])):
+            w.writerow({"domain": r["domain"], "first_detected": r.get("first_detected", ""),
+                        "prepended_label": int(bool(_PREPENDED.match(r["domain"])))})
+    os.replace(tmp, out_path)
+    return len(hit), len(rows)
+
+
 def load_seen(path: str = None) -> set[str]:
     path = path or SEEN_PATH
     if not os.path.exists(path):
@@ -470,8 +531,15 @@ def main() -> int:
     ap.add_argument("--outdir", default=OUTDIR,
                     help="where detections.csv and seen_domains.txt live; override to trial "
                          "new queries without writing into the live feed")
+    ap.add_argument("--report-self-induced", action="store_true",
+                    help="write which recorded identities were reached through the project's own "
+                         "scans (data/processed/infra/self_induced_hosts.csv) and search nothing")
     args = ap.parse_args()
     det_path = os.path.join(args.outdir, "detections.csv")
+    if args.report_self_induced:
+        n, total = report_self_induced(det_path)
+        print(f"[+] {n} of {total} identities reached through the project's own scans -> {SELF_REPORT}")
+        return 0
     seen_path = os.path.join(args.outdir, "seen_domains.txt")
 
     key = os.environ.get("URLSCAN_API_KEY", "")
@@ -482,6 +550,10 @@ def main() -> int:
     official, seen = load_official(), load_seen(seen_path)
     os.makedirs(args.outdir, exist_ok=True)
     fresh = not os.path.exists(det_path)
+    own = own_scan_ids()
+    print(f"[i] own-scan filter: {len(own):,} scan ids from {len(set(own.values()))} ledger(s)" if own
+          else "[!] own-scan filter OFF: no own_scan_ledgers.local beside this script, or no ids in it")
+    self_induced: dict[tuple[str, str], dict] = {}
 
     # collect first, capture second: one domain can match several tokens, and capturing inside the
     # search loop would spend the capture budget on whichever token happened to be searched first
@@ -513,6 +585,14 @@ def main() -> int:
             # token in the name at all, which is the entire point of that pass
             if tok is not None and not token_at_boundary(dom, tok):
                 continue
+            # Last, so that what is logged is what WOULD have been recorded. The name is not
+            # marked seen: if somebody else's scan reports it later, that is a discovery.
+            if r.get("_id", "") in own:
+                self_induced.setdefault((dom, r["_id"]), {
+                    "domain": dom, "brand": label, "scan_uuid": r["_id"],
+                    "task_url": task.get("url", ""), "scan_time": task.get("time", ""),
+                    "ledger": own[r["_id"]]})
+                continue
             cand[dom] = {
                 "domain": dom, "brand": label, "scan_uuid": r.get("_id", ""),
                 "task_url": task.get("url", ""), "scan_time": task.get("time", ""),
@@ -525,6 +605,23 @@ def main() -> int:
         time.sleep(args.delay)
 
     print(f"[i] {len(args.tokens)} tokens + {0 if args.no_content else len(CONTENT_QUERIES)} content queries, window {args.days}d -> {len(cand)} new candidate domains")
+    # a name an independent scan ALSO reported this run is a candidate, not a self-induced one
+    self_rows = [v for (d, _), v in self_induced.items() if d not in cand]
+    if self_rows:
+        si_path = os.path.join(args.outdir, "self_induced.csv")
+        have = set()
+        if os.path.exists(si_path):
+            with open(si_path, newline="", encoding="utf-8") as f:
+                have = {(r["domain"], r["scan_uuid"]) for r in csv.DictReader(f)}
+        new_rows = [v for v in self_rows if (v["domain"], v["scan_uuid"]) not in have]
+        with open(si_path, "a", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=SELF_FIELDS)
+            if not have and f.tell() == 0:
+                w.writeheader()
+            for v in new_rows:
+                w.writerow({**v, "seen_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+        print(f"[i] {len({v['domain'] for v in self_rows})} name(s) reached only through scans this "
+              f"project submitted: not recorded as detections ({len(new_rows)} new row(s) in self_induced.csv)")
 
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     n_cap = 0

@@ -43,6 +43,19 @@ by a letter (`short_token_closed()`). A reader who wants the source as it is now
 applies those three to the `domain` and `brand` columns of earlier rows; the label gate
 (section 6) already applies the first. Details and costs: `docs/decisions/ct-brands-brand-owned.md`.
 
+`urlscan_brands` searches urlscan with the project's own API key, and urlscan returns a key's
+unlisted scans to it, so a scan that another collector of this project had submitted could come
+back as a hit. By scan identifier, 137 of the 1,793 identities this source had recorded by
+2026-09-19 were reached that way (the first on 2026-07-26). For some, the name is a genuine report
+by another source and only this source's discovery of it is not independent; at least 72 are names
+nobody reported, formed when a wildcard-parked typo domain answered the project's scan under its
+own name with a numeric label prepended, one level deeper each time the result was scanned again.
+In the code from 2026-09-19 the collector discards a hit whose scan identifier is in the project's
+own submission ledgers (listed in a host-specific file beside the script), logs it, and does not
+mark the name seen, so an independent scan of it later still counts; the date it took effect on
+the collection device is recorded in the changelog at the next cut. Rows written earlier are
+kept, and `data/self_induced_hosts.csv` lists them.
+
 `first_detected` is the value the feed itself assigned: the moment the collector first recorded
 the hostname (urlscan channel, local clock), or the certificate's log-entry timestamp (CT
 channels, UTC). See `schema.md` for the timestamp conventions.

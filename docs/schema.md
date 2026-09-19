@@ -123,4 +123,19 @@ collected; the columns hold dates and registrar names only.
   registrable domains by detection day; both produced by `make_capture_funnel.py`.
 - `label_audit.csv`: `registered_domain, source, first_detected, verdict, stage_removed` and the evidence columns `in_tranco, in_allowlist, blocklists, renders_vietnamese, credential_form, vn_lexical` (no page content).
 - `wildcard_probe.csv`: `suffix, probe_name, probed_on, resolver_host, answers, wildcards`.
+- `self_induced_hosts.csv`: `domain, first_detected, prepended_label`. Hostnames the urlscan
+  brand channel recorded through a scan that another collector of this project had submitted with
+  the same key (the search returns a key's own unlisted scans). For the rows with
+  `prepended_label = 1` nobody reported the name at all: a wildcard-parked typo domain answered
+  the project's scan under its own name with a numeric label prepended. For the rest the name may
+  be a real report from another source; what is not independent is this channel's discovery of
+  it. Join on `domain` to `host_infra.csv` (`source = urlscan_brands`) to set them aside. The
+  list is decided by scan identifier against the project's submission ledgers, which are not
+  deposited, and carries no scan identifier itself.
+- `vn_registrant_kind.csv`: `domain, registrant_kind, registered, queried_at`. For each `.vn`
+  registered domain looked up through an accredited registrar's interface (the registry publishes
+  no WHOIS): whether the registrant is an `organisation` or an `individual`, by the legal form in
+  the registrant's name, and the registration date. An unrecognised form counts as `individual`,
+  so the share of organisations is a floor. **No registrant name is deposited**: the records name
+  private persons.
 - `ct_benign_seen.txt`, `ct_benign_vn_seen.txt`: the samplers' seen-sets.

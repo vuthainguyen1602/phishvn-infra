@@ -104,6 +104,8 @@ TZ_FIRST = {
 
 # The deposit, as PLAN §3 fixes it: (path in the zip, local file or None, unit, contents). Row
 # counts come from the local file; a source that has not written its first row prints 0.
+VN_KIND_CSV = os.path.join(PROC, "infra", "vn_registrant_kind.csv")
+SELF_INDUCED_CSV = os.path.join(PROC, "infra", "self_induced_hosts.csv")
 DEPOSIT = [
     ("README.md", None, "", "Overview, composition counts, usage notes"),
     ("LICENSE", None, "", "CC BY 4.0 licence text"),
@@ -145,6 +147,13 @@ DEPOSIT = [
      "Field completeness, capture success chain, consistency checks"),
     ("data/hosting_class.csv", os.path.join(PROC, "infra", "hosting_class.csv"), "rows",
      "Per hostname: registered / platform-hosted / uncertain, and the rule that decided"),
+    # Two lists a reader needs to apply what Experimental Design says, and cannot rebuild: one
+    # rests on the project's own scan ledgers, the other on registrant records that name private
+    # persons. Both ship as the conclusion without the evidence that cannot.
+    ("data/self_induced_hosts.csv", SELF_INDUCED_CSV, "rows",
+     "urlscan-channel hostnames reached through the project's own scans"),
+    ("data/vn_registrant_kind.csv", VN_KIND_CSV, "rows",
+     "Per \\texttt{.vn} domain: registrant is an organisation or an individual (no names)"),
     ("data/ct_benign_seen.txt", os.path.join(ROOT, "data", "raw", "ct_benign", "seen_domains.txt"),
      "lines", "Matched-arm sampler seen-set"),
     ("data/ct_benign_vn_seen.txt",
@@ -508,9 +517,6 @@ def whois_gap(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
     return out
 
 
-VN_KIND_CSV = os.path.join(PROC, "infra", "vn_registrant_kind.csv")
-
-
 def vn_registrants() -> dict[str, str]:
     """Who registered the `.vn` candidates the gate judged, as counts.
 
@@ -538,6 +544,38 @@ def vn_registrants() -> dict[str, str]:
            "PbVnRegAdmittedIndiv": fmt(int((adm["registrant_kind"] == "individual").sum())),
            "PbVnRegDate": max(kind["queried_at"].str[:10]) if len(kind) else "--"}
     print("[i] .vn registrants: " + ", ".join(f"{k}={v}" for k, v in out.items()))
+    return out
+
+
+def self_induced(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
+    """How much of the urlscan channel was the project's own scans coming back.
+
+    The search runs with the project's key and urlscan returns a key's own unlisted scans to it,
+    so a scan another of the project's tools had submitted could be "found" as a detection. The
+    collector discards such hits by provenance from the day that was noticed; this counts the
+    identities recorded before it, from the list the collector writes with --report-self-induced
+    (hostnames and scan ids only). Absent that file the sentence prints dashes."""
+    keys = ("PbEchoIdent", "PbEchoTotal", "PbEchoShare", "PbEchoPrepended", "PbEchoInRaw",
+            "PbEchoConditioned", "PbEchoFirst")
+    if not os.path.exists(SELF_INDUCED_CSV):
+        print("[!] self_induced_hosts.csv absent: the own-scan sentence prints dashes")
+        return dict.fromkeys(keys, "--")
+    si = pd.read_csv(SELF_INDUCED_CSV, dtype=str).fillna("")
+    names = set(si["domain"])
+    det = os.path.join(ROOT, "data", "raw", "urlscan_brands", "detections.csv")
+    if not os.path.exists(det):
+        print("[!] urlscan_brands/detections.csv absent: the own-scan sentence prints dashes")
+        return dict.fromkeys(keys, "--")
+    total = len(pd.read_csv(det, dtype=str, usecols=["domain"]))
+    raw = df[(df["source"] == "urlscan_brands") & df["domain"].isin(names)]
+    cond = pop[(pop["arm"] == "phish") & pop["domain"].isin(names)]
+    out = {"PbEchoIdent": fmt(len(si)), "PbEchoTotal": fmt(total),
+           "PbEchoShare": f"{100 * len(si) / total:.1f}" if total else "0",
+           "PbEchoPrepended": fmt(int((si["prepended_label"] == "1").sum())),
+           "PbEchoInRaw": fmt(int(raw["domain"].nunique())),
+           "PbEchoConditioned": fmt(int(cond["domain"].nunique())),
+           "PbEchoFirst": min(si["first_detected"].str[:10]) if len(si) else "--"}
+    print("[i] own scans: " + ", ".join(f"{k}={v}" for k, v in out.items()))
     return out
 
 
@@ -857,6 +895,7 @@ def main() -> int:
     extra = p1_overlap(df, pop)
     extra.update(whois_gap(df, pop))
     extra.update(vn_registrants())
+    extra.update(self_induced(df, pop))
     macros = write_macros(keys, extra)
     print("[i] macros: " + ", ".join(f"{k}={v}" for k, v in macros.items()))
     write_funnel_table()
