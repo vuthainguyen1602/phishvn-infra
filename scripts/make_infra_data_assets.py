@@ -508,6 +508,39 @@ def whois_gap(df: pd.DataFrame, pop: pd.DataFrame) -> dict[str, str]:
     return out
 
 
+VN_KIND_CSV = os.path.join(PROC, "infra", "vn_registrant_kind.csv")
+
+
+def vn_registrants() -> dict[str, str]:
+    """Who registered the `.vn` candidates the gate judged, as counts.
+
+    The gate removes a `.vn` name unless an independent list reports it, on the premise that the
+    registry's paperwork makes a real business the likelier registrant. That was an argument; this
+    is the measurement, from a registrar's API. The lookup tool and its ledger stay in the
+    development repository, because the ledger holds private individuals' names; this reads only
+    the name-free kind file the tool writes, and where that file is absent (a clone of the public
+    code) the sentence prints dashes rather than a number nobody there can trace."""
+    keys = ("PbVnRegCand", "PbVnRegKnown", "PbVnRegOrg", "PbVnRegOrgShare", "PbVnRegIndiv",
+            "PbVnRegAdmitted", "PbVnRegAdmittedIndiv", "PbVnRegDate")
+    if not (os.path.exists(VN_KIND_CSV) and os.path.exists(LABEL_AUDIT_CSV)):
+        print("[!] vn_registrant_kind.csv absent: the registrant sentence prints dashes")
+        return dict.fromkeys(keys, "--")
+    aud = pd.read_csv(LABEL_AUDIT_CSV, dtype=str).fillna("")
+    kind = pd.read_csv(VN_KIND_CSV, dtype=str).fillna("")
+    vn = aud[aud["registered_domain"].str.endswith(".vn")].merge(
+        kind, left_on="registered_domain", right_on="domain", how="left").fillna("")
+    known = vn[vn["registrant_kind"].isin(["organisation", "individual"])]
+    org = int((known["registrant_kind"] == "organisation").sum())
+    adm = known[known["training_eligible"] == "1"]
+    out = {"PbVnRegCand": fmt(len(vn)), "PbVnRegKnown": fmt(len(known)), "PbVnRegOrg": fmt(org),
+           "PbVnRegOrgShare": str(round(100 * org / len(known))) if len(known) else "0",
+           "PbVnRegIndiv": fmt(len(known) - org), "PbVnRegAdmitted": fmt(len(adm)),
+           "PbVnRegAdmittedIndiv": fmt(int((adm["registrant_kind"] == "individual").sum())),
+           "PbVnRegDate": max(kind["queried_at"].str[:10]) if len(kind) else "--"}
+    print("[i] .vn registrants: " + ", ".join(f"{k}={v}" for k, v in out.items()))
+    return out
+
+
 def write_funnel_table() -> None:
     """The phishing-arm funnel, one row per stage, straight from funnel.csv."""
     fun = list(csv.DictReader(open(FUNNEL_CSV, newline="", encoding="utf-8")))
@@ -823,6 +856,7 @@ def main() -> int:
     write_perish(df)
     extra = p1_overlap(df, pop)
     extra.update(whois_gap(df, pop))
+    extra.update(vn_registrants())
     macros = write_macros(keys, extra)
     print("[i] macros: " + ", ".join(f"{k}={v}" for k, v in macros.items()))
     write_funnel_table()
