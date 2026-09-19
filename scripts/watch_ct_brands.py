@@ -67,6 +67,8 @@ CT_BRAND_OWNED = frozenset({
     # the registry's own WHOIS, read by the author on 2026-09-19: registrant Ngan Hang TMCP Tien
     # Phong, registered 2008, delegated to the two Akamai name servers measured the same morning
     "tpbankgroup.com.vn",
+    # registrar-API record of 2026-09-19: the same VNPT cloud centre that registered vnptcloud.vn
+    "vnptplatform.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).

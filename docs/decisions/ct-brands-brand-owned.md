@@ -1,4 +1,4 @@
-# CT brand watcher: eleven brand-owned names and two noise rules, 2026-09-19
+# CT brand watcher: twelve brand-owned names and two noise rules, 2026-09-19
 
 **Applies to:** `scripts/watch_ct_brands.py` (`CT_BRAND_OWNED`, `CLOUD_INTERNAL_SUFFIXES`, `short_token_closed()`), source
 `ct_brands` in `data/raw/ct_brands/` and wherever that source name is carried downstream.
@@ -55,9 +55,34 @@ morning's DNS measurement had returned. It joins the set. The name had no addres
 when it was reported, so it was never captured and never reached the label gate's admitted
 classes.
 
+## The registry's record for the `.vn` names (added 2026-09-19, afternoon)
+
+The `.vn` decisions above were first made on indirect evidence (shared addresses and name
+servers, certificate history). From the afternoon of 2026-09-19 a registrar's API answers the
+registrant question directly. The lookup tool and its ledger are kept in the development
+repository and not shipped, because the ledger also holds private individuals' names. Every
+`.vn` name in the set has an organisational registrant that is the brand, and, with the one
+exception described under the table, its listed name servers are the ones DNS uses:
+
+| Name | Registrant | Registered |
+|---|---|---|
+| `viettelcloud.vn`, `viettelcloud.com.vn` | Tổng Công ty Giải pháp Doanh nghiệp Viettel | 2017-05-31 |
+| `viettelstore.vn` | Công ty TNHH NN MTV Thương mại và Xuất nhập khẩu Viettel | 2011-08-25 |
+| `viettelmedia.vn` | Công ty TNHH MTV Truyền thông Viettel | 2016-12-13 |
+| `vnptcloud.vn` | Trung tâm Điện toán Đám mây VNPT | 2026-03-31 |
+| `vnptplatform.vn` | Trung tâm Điện toán Đám mây VNPT | 2024-07-31 |
+| `tpbankgroup.com.vn` | Ngân hàng TMCP Tiên Phong | 2008-04-01 |
+
+The same lookup shows `vnptplatform.vn`, one of the hosts left open, registered to the same VNPT
+centre as `vnptcloud.vn` (2024-07-31). Its record is the one case where the listed name servers
+and live DNS disagree, and the disagreement is the zone's own: it publishes its NS targets as
+`ns1.` and `ns2.`, without the domain. The author added it to the set the same afternoon, as
+the twelfth name; the short-token rule had already kept the collector from reporting it, so the
+entry matters for the label gate and for a reader applying the set to earlier rows.
+
 ## Left open on purpose
 
-Four hosts the check did not settle remain candidates and are not filtered by this set. What was
+Three hosts remain undecided candidates and are not filtered by this set. What was
 measured about each is kept in the development repository, not here: it describes third parties'
 infrastructure, and a candidate is not a finding.
 
@@ -75,7 +100,7 @@ brand-owned set, the same morning.
   `gplx`, `utc2`, `vnpt`. Replayed over the first 103 rows it drops 22: 17 English names under
   `bidv` (`bidvest*` x7, `bidverse*` x3, `bidvault`, `bidverity`, `bidvesting`, `bidvets`,
   `bidvex`, `bidvia`, `bidvincer`), one machine-made `gplx...crosspaysolutions.app`, and four
-  under `vnpt`: `vnptcloud.vn` (brand-owned anyway), `vnptplatform.vn` (unsettled, above), and
+  under `vnpt`: `vnptcloud.vn` (brand-owned anyway), `vnptplatform.vn` (brand-owned too, above), and
   `vnptmytv.com` and `vnptwifi24h.com`, which read like resellers. Those last two are the stated
   cost. It keeps 12, among them `bidv-kiemtra.pages.dev`, `bidv2026.ato.vn`,
   `bidv.herokaupp.com`, `vnpt365.workers.dev`, `gplx-gialai.workers.dev`.

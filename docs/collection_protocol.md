@@ -37,7 +37,7 @@ only "brand-token hit". The label gate (section 6) is what turns it into evidenc
 against hostnames: what came back were organizationName matches, mostly the brand's own hosts.
 From then it asks `token%`, so it sees names that BEGIN with a brand token and no others; the
 first tick under that query reported up to a week of certificates at once and is a backfill, not
-a rate. From 2026-09-19 it also drops eleven names confirmed as the brand's own (`CT_BRAND_OWNED`),
+a rate. From 2026-09-19 it also drops twelve names confirmed as the brand's own (`CT_BRAND_OWNED`),
 hosts under `amazonaws.com`, and names in which a token of four characters or fewer is followed
 by a letter (`short_token_closed()`). A reader who wants the source as it is now collected
 applies those three to the `domain` and `brand` columns of earlier rows; the label gate
