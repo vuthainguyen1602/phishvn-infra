@@ -4,7 +4,7 @@
 > supplement carries source-derived labels; neither archive claims completed human
 > validation. Final release version and reviewer access remain pending.
 
-> **Label policy updated 8 September 2026:** see [v2 policy](label_policy_v2.md).
+> **Label policy: source tiers, version 3.0.0 (15 September 2026):** see [label_policy_v3.md](label_policy_v3.md). `label` is the source's assertion with a `label_status` for its evidence; label error is measured on a blinded sample (`label_validation.csv`). The stricter 8 September experiment is archived in [label_policy_v2.md](label_policy_v2.md).
 > The counts and screen terminology below document the historical v1 snapshot;
 > reputation and heuristic signals are not verified outcome labels.
 
@@ -23,7 +23,7 @@ collector; the `source` column names that collector. Three lanes feed the watche
 | `source` | `label` | collector | what admits a domain |
 |---|---|---|---|
 | `urlscan_brands` | phish | `watch_urlscan_brands.py` | urlscan search hits for hostnames carrying a curated Vietnamese brand token (banks, carriers, public services, logistics) plus a few Vietnamese page-content queries; official domains of the real operators are dropped before recording; a per-source seen-set prevents re-admission |
-| `ct_brands` | phish | CT polling for the same tokens | certificate log entries whose names carry a brand token |
+| `ct_brands` | phish | `watch_ct_brands.py` | certificate log entries whose names carry a brand token |
 | `chongluadao_live`, `vn_phishing_live` | phish | historical feed importers | backfill only; they emitted no live detection in the window |
 | `ct_benign` | benign | `watch_ct_benign.py` | the matched arm, section 3 |
 | `ct_benign_vn` | benign | `watch_ct_benign.py --stratum vn` | the `.vn` supplement, section 4 |
@@ -31,6 +31,17 @@ collector; the `source` column names that collector. Three lanes feed the watche
 
 Because urlscan's free tier exposes no maliciousness verdict, `label=phish` on admission means
 only "brand-token hit". The label gate (section 6) is what turns it into evidence.
+
+`ct_brands` is three collection regimes, and its rows are never rewritten. Until
+2026-09-18T16:45Z the collector asked `crt.sh` for `%token%`, which that service does not match
+against hostnames: what came back were organizationName matches, mostly the brand's own hosts.
+From then it asks `token%`, so it sees names that BEGIN with a brand token and no others; the
+first tick under that query reported up to a week of certificates at once and is a backfill, not
+a rate. From 2026-09-19 it also drops ten names confirmed as the brand's own (`CT_BRAND_OWNED`),
+hosts under `amazonaws.com`, and names in which a token of four characters or fewer is followed
+by a letter (`short_token_closed()`). A reader who wants the source as it is now collected
+applies those three to the `domain` and `brand` columns of earlier rows; the label gate
+(section 6) already applies the first. Details and costs: `docs/decisions/ct-brands-brand-owned.md`.
 
 `first_detected` is the value the feed itself assigned: the moment the collector first recorded
 the hostname (urlscan channel, local clock), or the certificate's log-entry timestamp (CT

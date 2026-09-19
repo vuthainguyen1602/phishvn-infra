@@ -1,5 +1,9 @@
 # Independent live collection — active scope, 9 September 2026
 
+> The infrastructure deposit (`data/processed/infra/infra_dataset.csv`) is labelled under its own
+> source-tier policy, [infra/label_policy_v3.md](infra/label_policy_v3.md), with a blinded
+> validation sample; this document governs only the observation-level live supplement.
+
 This dataset is separate from the published URL corpus. Its labelling job does not
 read, copy, merge or depend on that corpus or its manual annotation sheets.
 Source-tier conventions describe the provenance of this collection alone.

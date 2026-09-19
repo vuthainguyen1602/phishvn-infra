@@ -79,6 +79,28 @@ DEFAULT_TOKENS = [
     "seabank", "msbbank", "ocbbank", "vibbank", "shbbank", "abbank", "ncbbank", "bvbank",
     "vietbank", "scbbank", "eximbank", "pgbank", "timobank", "cakebyvpbank", "mcredit",
     "fecredit", "homecredit", "vcbdigibank", "smartbanking",
+    # Added 2026-09-13 by the same test that excluded `momo` and `shopee`: 30-day urlscan volume
+    # for `page.domain:*token*`, which is how much legitimate traffic a token drags in. Kept below
+    # 400 scans; the number measured is beside each. Banks large enough to be worth impersonating
+    # were simply missing from the list, not decided against.
+    "tpbank",            # 232
+    "oceanbank",         # 17
+    "gpbank",            # 24
+    "cbbank",            # 214
+    "indovinabank",      # 5
+    "vietcapitalbank",   # 10
+    "hongleongbank",     # 0
+    # REJECTED by the same measurement, recorded so nobody re-adds them: acb 5,049 (three letters
+    # inside a thousand innocent words), zalo 672, ninjavan 3,374, jtexpress 2,265. `momo` 4,679
+    # and `shopee` 1,305 were already excluded above for the same reason.
+    #
+    # `publicbank` was added on 2026-09-13 and REMOVED the same day, which is the case worth
+    # recording. Its 30-day volume was a harmless 161, so the volume test passed it. Running the
+    # sweep is what caught it: `republicbankcu.co.com`, `api.republicbanklockbox.com` and
+    # `seattlepublicbanking.pages.dev`, all United States banks, because token_at_boundary exempts
+    # tokens of 9+ characters from the boundary rule and `publicbank` sits inside `republicbank`.
+    # Volume measures how much legitimate traffic a token drags in; it cannot see a token that is a
+    # substring of a larger foreign brand. A long token needs both tests.
     # biometric & banking auth (Quyết định 2345)
     "sinhtrachoc", "xacthuckhuonmat", "capnhatsinhtrachoc", "nfccancuoc",
     # e-wallets, payment & fintech
@@ -128,6 +150,10 @@ DEFAULT_TOKENS = [
     "tiktokshopvn",
     "shopaeon", "aeonmall", "aeshopvn",
     "giaohangnhanh", "ghtk", "ghnexpress", "ghnvn",
+    "ahamove",           # 0, measured 2026-09-13
+    "spxvn",             # 0
+    "xanhsm",            # 0, the taxi brand a 2025 wave of fake driver-recruitment pages used
+    "payoo",             # 7
 ]
 
 # A SECOND LENS, on page content: the token list is blind to e.g. `56bfrd3jrn.pages.dev` rendering

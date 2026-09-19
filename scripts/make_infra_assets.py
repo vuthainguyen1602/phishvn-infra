@@ -53,13 +53,22 @@ except ImportError:  # flat public-mirror layout
 from paired_eval import corrected_paired_t, wilson
 from genfile import write_generated
 from compphish_features import extract as lex_extract
-from audit_capture_labels import (audit, is_hosted_subdomain,
-                             is_registry_wildcard, load_content_map, registrable)
+from audit_capture_labels import (HOSTED_SUFFIXES, audit, is_hosted_subdomain,
+                             is_registry_wildcard, list_only_domains, load_content_map,
+                             registrable)
 from outcome_gate import OUTCOME_LABELS, trusted_positive_population
+from label_policy import source_tier
 
 INFRA = "data/raw/host_infra/host_infra.csv"
 DATASET = "data/processed/infra/infra_dataset.csv"
+# Adjudicated verdicts of the blinded label-validation sample (written by
+# make_label_validation.py --analyze); absent or empty until the review is done.
+LABEL_REVIEW = "data/processed/infra/label_review.csv"
 LABEL_AUDIT = "data/processed/infra/label_audit.csv"
+# The provider-hosted lures, as their own stratum (2026-09-13). Never pooled with the
+# registrable-domain population: its unit is a registration, this one's unit is a tenant on
+# somebody else's registration, and the two cannot be counted together.
+HOSTED_STRATUM = "data/processed/infra/hosted_stratum.csv"
 SECTIONS = "papers/P4_infra/sections"
 SMOKE_DIR = "data/interim/p4_smoke"
 CONTENT_MAP = "data/interim/content_map.csv"
@@ -69,7 +78,13 @@ WATCHER_START = pd.Timestamp("2026-07-30")
 # `tls_not_before/after` carry an offset. Parsing all four utc=True inflated cert age by 7 h.
 LOCAL_TZ = "Asia/Ho_Chi_Minh"
 CT_SOURCES = ("ct_benign", "ct_benign_vn")
-TRIGGER, CONFIRM = 500, 1000
+# VOIDED 2026-09-09, when P4 was discontinued (papers/P4_infra/STATUS.md): on that date the
+# n >= 500 candidate trigger and the 500-adjudicated-positive outcome gate stopped governing
+# anything, and no cutoff has replaced them. The value survives for two archival readers only --
+# P4b's historical sentence via \PbTriggerN ("its former 500-candidate ... plan was not reached")
+# and P4's archived funnel figure. Nothing that runs may report it as a milestone still to reach;
+# printing progress "toward" it is what made a dead rule look live for four days.
+VOIDED_TRIGGER, CONFIRM = 500, 1000
 
 # Candidate-screen reasons only, never outcome labels: blocklist-named, rendered credential form (added
 # 2026-08-16 -- only 18% of Vietnamese-rendering pages ask for a password, so language and
@@ -86,6 +101,16 @@ VN_CONTRAST_MIN = 10
 # The .vn supplement of the matched arm (PREREG amendment 2026-08-21): its own source, admitted to
 # the SAME arm under the same conditioning, but it may fill .vn cells only, and is never pooled.
 SUPPLEMENT_SOURCE = "ct_benign_vn"
+# Sources whose rows are NOT part of the live phishing stratum, however recent the capture.
+# Decided 2026-09-13 on the collector's own record: of chongluadao_live's 5,858 detections, 32
+# (0.5%) carry a first_detected inside the live window, the newest is 2026-09-04, and the feed has
+# reported 0 new Vietnamese-targeting domains since. All 29 of its live candidates carried the
+# single verdict historical_feed_match and 26 of them no longer resolved when the watcher reached
+# them. It is a snapshot of a denylist, not a live feed, and counting three admitted domains from
+# it inside a live-stratum population mixes a historical regime into a live one. The collector
+# keeps running and its rows stay in host_infra.csv, tagged with their source, so anything that
+# wants the historical comparison can still have it.
+HISTORICAL_PHISH_SOURCES = ("chongluadao_live",)
 BENIGN_SOURCES = (BENIGN_SOURCE, SUPPLEMENT_SOURCE)
 COMPARATOR_SOURCE = "tinnhiem_benign"
 COMPARATOR_ARM = "benign_tinnhiem"
@@ -145,6 +170,21 @@ def localise_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def load_label_review(path: str = LABEL_REVIEW) -> dict[str, str]:
+    """Exact captured hostname -> adjudicated verdict (phishing | benign | unsure).
+
+    Keyed by `domain`, not registrable domain, because the review looked at ONE captured host
+    and the policy forbids propagating a verdict to parents or siblings. Absent file = no
+    review yet, which is an ordinary state, not an error."""
+    if not os.path.exists(path):
+        return {}
+    rev = pd.read_csv(path, dtype=str).fillna("")
+    rev = rev[rev["adjudicated_label"].isin(["phishing", "benign", "unsure"])]
+    if rev["domain"].duplicated().any():
+        raise ValueError(f"{path}: a captured hostname was adjudicated twice")
+    return dict(zip(rev["domain"].str.strip().str.lower(), rev["adjudicated_label"]))
+
+
 def build_population() -> tuple[pd.DataFrame, dict]:
     df = pd.read_csv(INFRA, low_memory=False)
     df = localise_timestamps(df)
@@ -172,9 +212,12 @@ def build_population() -> tuple[pd.DataFrame, dict]:
         if got:
             ipmap[reg] = ipmap.get(reg, frozenset()) | got
 
-    ph_live = df[(df["label"] == "phish") & (df["first_detected"] >= WATCHER_START)]
+    ph_all = df[(df["label"] == "phish") & (df["first_detected"] >= WATCHER_START)]
+    _hist = ph_all["source"].isin(HISTORICAL_PHISH_SOURCES)
+    funnel["phish_historical"] = ph_all.loc[_hist, "registered_domain"].nunique()
+    ph_live = ph_all[~_hist]
     audit_tab = audit(sorted(set(ph_live["registered_domain"])), content_map=content,
-                      ipmap=ipmap)
+                      ipmap=ipmap, list_only=list_only_domains(ph_live))
     verdict = dict(audit_tab[["registered_domain", "verdict"]].itertuples(index=False, name=None))
     stage_removed: dict[str, str] = {}     # phishing candidates only: where each one left
     # Time-matching means "collected by the same watcher over the same period", not strict containment:
@@ -192,6 +235,13 @@ def build_population() -> tuple[pd.DataFrame, dict]:
         funnel[f"{name}_hosted"] = arm.loc[hosted, "registered_domain"].nunique()
         if name == "phish":
             stage_removed.update((d, "hosted_subdomain") for d in arm.loc[hosted, "registered_domain"])
+            # Kept, not discarded. These are real Vietnamese lures -- 283 of them under
+            # blogspot.com, 69 under pages.dev -- and they leave the registrable-domain
+            # population because the registration they would contribute belongs to Blogspot, not
+            # to whoever put the lure there. Measuring them as their own stratum, with only the
+            # fields that describe the tenant's deployment, keeps them observable without
+            # pretending the provider's registration is the attacker's.
+            hosted_rows = arm.loc[hosted].copy()
         arm = arm[~hosted]
         # Wildcard screen applies to every arm -- a wildcard name has no registration to study whichever
         # arm claims it. Only the phishing feed is contaminated in practice (the benign arms sample
@@ -219,6 +269,8 @@ def build_population() -> tuple[pd.DataFrame, dict]:
         funnel[f"{name}_conditioned"] = len(arm)
         arms.append(arm.assign(arm=name))
     pop = pd.concat(arms, ignore_index=True)
+    write_hosted_stratum(hosted_rows, verdict)
+    funnel["hosted_stratum"] = int(hosted_rows["domain"].nunique()) if len(hosted_rows) else 0
     write_label_audit(ph_live, audit_tab, stage_removed, funnel)
     pop["verdict"] = pop["registered_domain"].where(pop["arm"] == "phish").map(verdict).fillna("")
     funnel["content_map"] = int(content is not None)
@@ -238,12 +290,17 @@ def build_population() -> tuple[pd.DataFrame, dict]:
     pop["mx_present"] = (pd.to_numeric(pop["mx_count"], errors="coerce") > 0).astype(int)
     pop["cname_present"] = pop["cname"].fillna("").astype(str).str.strip().astype(bool).astype(int)
 
-    # arm preserves the historical acquisition cohort; it is never a training label.
-    pop["label"] = "unknown"
-    status = audit_tab.set_index("registered_domain")["label_status"]
-    pop["label_status"] = pop["registered_domain"].map(status).where(pop["arm"] == "phish", "unknown")
-    pop["training_eligible"] = 0
-    pop["policy_version"] = "2.0.0"
+    # Source-tier label policy (v3, 2026-09-15): `label` is the source's assertion, `label_status`
+    # says what evidence backs it, and a row sampled into the blinded two-annotator review carries
+    # the adjudicated verdict instead. Label correctness is measured on that sample
+    # (make_label_validation.py), not asserted per row. `arm` stays the acquisition cohort.
+    review = load_label_review()
+    fields = pd.DataFrame([
+        source_tier(arm, verdict, review=review.get(dom))
+        for arm, verdict, dom in zip(pop["arm"], pop["verdict"], pop["domain"])
+    ], index=pop.index)
+    for col in ("label", "label_status", "training_eligible", "policy_version"):
+        pop[col] = fields[col]
     keep = ["domain", "label", "label_status", "training_eligible", "policy_version", "registered_domain", "arm", "source", "verdict", "first_detected", "captured_at",
             "cert_age_days", "cert_validity_days", "issuer_grp", "san_count", "ttl",
             "ns_count", "ns_provider_grp", "mx_present", "cname_present"]
@@ -251,6 +308,48 @@ def build_population() -> tuple[pd.DataFrame, dict]:
     # plain to_csv leaves a torn file to whichever reader arrives mid-write.
     write_generated(DATASET, pop[keep].to_csv(index=False))
     return pop, funnel
+
+
+def write_hosted_stratum(rows: pd.DataFrame, verdict: dict) -> None:
+    """The provider-hosted lures, one row per host, with the fields that describe the TENANT.
+
+    What is deliberately absent is as much of the design as what is present. NS, MX and WHOIS
+    describe the provider's registration -- blogspot.com is registered to Google whatever the
+    lure does -- so carrying them here would invite exactly the reading this stratum exists to
+    prevent. Certificate, TTL and CNAME are observed on the host itself and are the tenant's
+    deployment, so they stay. `provider` is the registrable domain the host sits under, which is
+    the grouping any analysis of this stratum has to condition on."""
+    # The provider is the hosted SUFFIX, not the registrable domain: the PSL private section
+    # makes shopee1372.blogspot.com its own registrable domain, which is the tenant's name and
+    # exactly what must not be mistaken for a registration. HOSTED_SUFFIXES is the same list the
+    # screen used to move these rows here.
+    def hosting_provider(host: str) -> str:
+        return next((sfx for sfx in HOSTED_SUFFIXES if host.endswith("." + sfx)), "")
+
+    cols = ["domain", "provider", "source", "verdict", "first_detected", "captured_at",
+            "cert_age_days", "cert_validity_days", "issuer_grp", "san_count", "ttl",
+            "cname_present"]
+    if not len(rows):
+        pd.DataFrame(columns=cols).to_csv(HOSTED_STRATUM, index=False)
+        return
+    one = rows.groupby("domain", group_keys=False)[rows.columns].apply(most_complete)
+    out = pd.DataFrame({
+        "domain": one["domain"],
+        "provider": one["domain"].map(hosting_provider),
+        "source": one["source"],
+        "verdict": one["registered_domain"].map(verdict).fillna(""),
+        "first_detected": one["first_detected"],
+        "captured_at": one["captured_at"],
+        "cert_age_days": (one["captured_at"] - one["tls_not_before"]).dt.total_seconds() / 86400,
+        "cert_validity_days": (one["tls_not_after"]
+                               - one["tls_not_before"]).dt.total_seconds() / 86400,
+        "issuer_grp": one["tls_issuer"].map(issuer_group),
+        "san_count": pd.to_numeric(one["tls_san_count"], errors="coerce"),
+        "ttl": pd.to_numeric(one["a_ttl"], errors="coerce"),
+        "cname_present": one["cname"].fillna("").astype(str).str.strip().astype(bool).astype(int),
+    })
+    os.makedirs(os.path.dirname(HOSTED_STRATUM), exist_ok=True)
+    out.sort_values("first_detected").to_csv(HOSTED_STRATUM, index=False)
 
 
 def write_label_audit(ph_live: pd.DataFrame, audit_tab: pd.DataFrame,
@@ -310,12 +409,11 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
     # the registry group. They are not. Report the BINDING arm, whichever side it falls on.
     be_vn = int(pop[(pop["arm"] == "benign")]["registered_domain"]
                 .astype(str).str.endswith(".vn").sum())
-    _, outcome_gate = trusted_positive_population(pop, TRIGGER)
+    _, outcome_gate = trusted_positive_population(pop, VOIDED_TRIGGER)
     gate_reason_tex = outcome_gate.reason.replace("_", r"\_")
     with io.StringIO() as f:
         f.write(f"As of {asof}: ${n_ph}$ conditioned candidate registrable domains admitted by the "
-                f"screen of \\S\\ref{{sec:protocol}} (${100 * n_ph // TRIGGER}\\%$ of the "
-                f"$n \\geq {TRIGGER}$ analysis trigger), of which ${n_vn}$ are \\texttt{{.vn}}, "
+                f"screen of \\S\\ref{{sec:protocol}}, of which ${n_vn}$ are \\texttt{{.vn}}, "
                 f"and ${format(n_be, ',').replace(',', '{,}')}$ conditioned benign registrable domains from \\texttt{{ct\\_benign}} "
                 f"--- the age-matched arm, and the only benign arm the comparison uses. "
                 + (f"TLD matching is achieved off \\texttt{{.vn}} but not on it: the benign arm "
@@ -341,14 +439,12 @@ def write_monitoring(pop: pd.DataFrame, funnel: dict) -> None:
                    "The content-evidence map was absent for this snapshot, so the "
                    "\\emph{content-confirmed} class could not contribute and the phishing arm is "
                    "undercounted. ")
-                + (f"The candidate trigger has fired, but the outcome remains locked: "
-                   f"{gate_reason_tex}."
-                   if n_ph >= TRIGGER and not outcome_gate.unlocked else
-                   "Both the candidate trigger and trusted-positive gate have fired; the "
-                   "confirmatory outcome path is unlocked."
-                   if outcome_gate.unlocked else
-                   f"The candidate trigger has not fired, and the outcome-label gate is also "
-                   f"locked ({gate_reason_tex}); no outcome model has been fitted.") + "\n")
+                + ("This study was discontinued on 9 September 2026; the candidate trigger that "
+                   "governed it was voided on the same date and has not been replaced, so the "
+                   "count above is a description of the collection and not progress toward a "
+                   "threshold. No outcome model has been fitted"
+                   + (f" (the outcome-label gate also reads locked: {gate_reason_tex})"
+                      if not outcome_gate.unlocked else "") + ".") + "\n")
         write_generated(f"{SECTIONS}/gen_progress.tex", f.getvalue())
     with io.StringIO() as f:
         # The per-arm hosted-subdomain and wildcard removals are the differences between consecutive rows
@@ -519,7 +615,7 @@ def fit_main(pop: pd.DataFrame, out_dir: str, smoke: bool) -> None:
     from catboost import CatBoostClassifier
 
     if not smoke:
-        pop, outcome_gate = trusted_positive_population(pop, TRIGGER)
+        pop, outcome_gate = trusted_positive_population(pop, VOIDED_TRIGGER)
         if not outcome_gate.unlocked:
             raise RuntimeError("outcome is locked: " + outcome_gate.reason)
     d = pop[pop["arm"].isin(MODEL_ARMS)].copy()
@@ -680,18 +776,19 @@ def main() -> int:
     pop, funnel = build_population()
     write_monitoring(pop, funnel)
     n = funnel["phish_conditioned"]
-    trusted_pop, outcome_gate = trusted_positive_population(pop, TRIGGER)
+    trusted_pop, outcome_gate = trusted_positive_population(pop, VOIDED_TRIGGER)
     print(f"[+] dataset {DATASET} ({len(pop)} rows); monitoring assets regenerated "
-          f"(phish {n}/{TRIGGER} toward trigger, benign[ct] {funnel['benign_conditioned']}, "
+          f"(phish {n} admitted [no trigger: voided 2026-09-09], "
+          f"benign[ct] {funnel['benign_conditioned']}, "
           f"comparator[tinnhiem] {funnel[f'{COMPARATOR_ARM}_conditioned']}, not pooled)")
     if args.monitor_only:
         print("[i] --monitor-only: monitoring assets written, no model fitted")
     elif args.smoke:
         fit_main(pop, SMOKE_DIR, smoke=True)
-    elif n >= TRIGGER and outcome_gate.unlocked:
+    elif n >= VOIDED_TRIGGER and outcome_gate.unlocked:
         fit_main(trusted_pop, SECTIONS, smoke=False)
     else:
-        print(f"[i] outcome locked — candidates {n}/{TRIGGER}; {outcome_gate.reason}. "
+        print(f"[i] outcome locked — candidates {n}; {outcome_gate.reason}. "
               f"No real-outcome model is fitted. Expected labels: {OUTCOME_LABELS}")
     return 0
 

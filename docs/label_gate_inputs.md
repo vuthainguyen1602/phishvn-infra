@@ -4,7 +4,7 @@
 > supplement carries source-derived labels; neither archive claims completed human
 > validation. Final release version and reviewer access remain pending.
 
-> **Label policy updated 8 September 2026:** see [v2 policy](label_policy_v2.md).
+> **Label policy: source tiers, version 3.0.0 (15 September 2026):** see [label_policy_v3.md](label_policy_v3.md). `label` is the source's assertion with a `label_status` for its evidence; label error is measured on a blinded sample (`label_validation.csv`). The stricter 8 September experiment is archived in [label_policy_v2.md](label_policy_v2.md).
 > The counts and screen terminology below document the historical v1 snapshot;
 > reputation and heuristic signals are not verified outcome labels.
 
@@ -65,6 +65,14 @@ at source.
 
 `watch_urlscan_brands.load_official()` and `data/raw/chongluadao_live/seen_domains.txt`. Derived
 from the feeds the corpus already names and rebuilt by the collectors that ship with it.
+
+## The source of the report (since 2026-09-19)
+
+The gate also reads which source reported a domain, for one purpose: a domain that only
+`ct_brands` reported is admitted on an independent list match and on nothing else
+(`LIST_ONLY_SOURCES` in `audit_capture_labels.py`; removal verdict `list_only_source`). The
+reason and the count are in `label_policy_v3.md`. The source is the `source` column of
+`host_infra.csv`, so the rule can be re-applied from the deposit alone.
 
 ## What this means for a reader
 

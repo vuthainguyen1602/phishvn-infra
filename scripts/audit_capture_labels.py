@@ -59,7 +59,7 @@ except ImportError:  # flat public-mirror layout
 # in which every importer worked and `python3 scripts/audit_capture_labels.py` raised
 # ModuleNotFoundError on both machines.
 from psl import apex  # noqa: E402
-from label_policy import feed_evidence, observable
+from label_policy import feed_evidence, observable, source_tier
 
 P4_DATASET = os.path.join("data", "processed", "infra", "infra_dataset.csv")
 DETECTIONS = os.path.join("data", "raw", "urlscan_brands", "detections.csv")
@@ -271,8 +271,15 @@ def load_allowlists() -> set[str]:
     trusted-org registry. Absence proves nothing (these are certification lists, not censuses),
     so this is used only to exclude, never to confirm."""
     from watch_urlscan_brands import load_official
+    from watch_ct_brands import CT_BRAND_OWNED
 
     out = {d.lower() for d in load_official()}
+    # The CT feed's brand-owned names (docs/decisions/ct-brands-brand-owned.md). That set stays out
+    # of load_official() so it cannot move a registered source's filter, which left this gate blind
+    # to it: on 2026-09-19 `ahamove.com` stood here as content-corroborated phishing because the
+    # operator's own site renders Vietnamese. The gate matches registered domains, so a tenant
+    # HOST in the set (`vinpearltravel.cloudhms.io`) is not screened here.
+    out |= set(CT_BRAND_OWNED)
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for tok in json.load(f).get("tokens", []):
@@ -395,9 +402,27 @@ def load_content_map(path: str) -> dict[str, dict[str, bool]]:
             for _, r in df.iterrows()}
 
 
+# Sources whose report is corroborated ONLY by an independent list, never by what the name or the
+# page says (gate amendment of 2026-09-19, docs: label_gate_inputs.md). A certificate-transparency
+# hit proves that a name carrying a brand token was set up, not that a lure was served: every
+# other phishing source here is a report ABOUT a page or a listing of one. Under the prefix query
+# the first eight such names the gate admitted had no list behind any of them, and included a
+# contractor's house-building site and a reseller's login page, admitted because the page was in
+# Vietnamese or had a form. The content fields still land in label_audit.csv.
+LIST_ONLY_SOURCES = ("ct_brands",)
+
+
+def list_only_domains(ph: pd.DataFrame) -> frozenset[str]:
+    """Registered domains that ONLY a list-only source reported. `ph` needs `registered_domain`
+    and `source`; a domain another source also reported keeps the ordinary rules."""
+    weak = ph["source"].isin(LIST_ONLY_SOURCES)
+    return frozenset(set(ph.loc[weak, "registered_domain"]) - set(ph.loc[~weak, "registered_domain"]))
+
+
 def audit(domains: list[str], use_content: bool = False,
           content_map: dict[str, bool] | None = None,
-          ipmap: dict[str, frozenset[str]] | None = None) -> pd.DataFrame:
+          ipmap: dict[str, frozenset[str]] | None = None,
+          list_only: frozenset[str] = frozenset()) -> pd.DataFrame:
     tranco, allow, blocks = load_tranco(), load_allowlists(), load_blocklists()
     if not tranco:
         print("[!] Tranco lists absent — reputation screening is incomplete; "
@@ -429,6 +454,10 @@ def audit(domains: list[str], use_content: bool = False,
         # admits under a gated suffix, and nothing the page says about itself does.
         elif is_registry_gated_vn(d) and (pw or vi or lex):
             verdict = "vn_registry_gated"
+        # Below the blocklist test for the same reason as the line above: a list still admits.
+        # A NAMED verdict for the same reason too: what this rule takes out has to stay countable.
+        elif d in list_only and (pw or vi or lex):
+            verdict = "list_only_source"
         elif pw:
             verdict = "credential_form"
         elif vi:
@@ -444,11 +473,12 @@ def audit(domains: list[str], use_content: bool = False,
                      "renders_vietnamese": "" if vi is None else int(vi),
                      "credential_form": "" if pw is None else int(pw),
                      "vn_lexical": int(lex),
-                     "label_status": ("conflict" if hits and (in_tranco or in_allow) else
-                                      "feed_reported" if hits else
-                                      "candidate" if (pw or vi or lex) else "unknown"),
-                     "label": "unknown", "training_eligible": 0,
-                     "policy_version": "2.0.0"})
+                     # Source-tier policy (v3): an admitted verdict carries the source's
+                     # phishing label with the status of its evidence; a removed class carries
+                     # no label. Reviewed overrides are applied by build_population, which is
+                     # where the review file is joined.
+                     **source_tier("phish", verdict,
+                                   conflict=bool(hits and (in_tranco or in_allow)))})
     if REPROBE:
         write_wildcard_probe()
     return pd.DataFrame(rows)
@@ -515,6 +545,7 @@ def main() -> int:
         return 0
 
     ipmap: dict[str, frozenset[str]] = {}
+    list_only: frozenset[str] = frozenset()
     if args.live:
         df = pd.read_csv(os.path.join("data", "raw", "host_infra", "host_infra.csv"),
                          low_memory=False)
@@ -523,6 +554,8 @@ def main() -> int:
         cond = (ph["a_records"].fillna("").astype(str).str.strip().astype(bool)
                 & (pd.to_numeric(ph["tls_present"], errors="coerce") == 1))
         domains = [registrable(h) for h in ph[cond]["domain"].dropna()]
+        live = ph[cond].assign(registered_domain=ph[cond]["domain"].map(registrable))
+        list_only = list_only_domains(live)
         # Capture-time addresses for the wildcard guard, unioned across attempts so a domain that
         # ever resolved beyond the registry's answer is never mistaken for the wildcard.
         for _, r in ph[cond].iterrows():
@@ -545,11 +578,11 @@ def main() -> int:
     # directory does not exist and the run dies after every DNS probe it just spent.
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     res = audit([d for d in domains if d], use_content=args.content, content_map=cmap,
-                ipmap=ipmap)
+                ipmap=ipmap, list_only=list_only)
     res.to_csv(OUT, index=False)
 
     order = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical",
-             "vn_registry_gated", "uncorroborated", "no_capture",
+             "vn_registry_gated", "list_only_source", "uncorroborated", "no_capture",
              "reputation_screened", "hosted_subdomain", "registry_wildcard")
     n = len(res)
     print(f"[i] scope: {scope} -> {n} registrable domains\n")

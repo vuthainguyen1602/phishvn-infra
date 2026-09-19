@@ -48,13 +48,16 @@ except ImportError:  # flat public-mirror layout
     ROOT = os.path.dirname(_HERE)
 
 from genfile import write_generated
+from hostname import filter_capture_rows, looks_like_hostname
 # The population rule is imported, never restated: the deposit must be exactly the population the
 # companion study analyses, or the data article describes a different object from the one cited.
 from make_infra_assets import (ARM_COLUMNS, COMPARATOR_ARM, FEATURES_CAT,
-                            FEATURES_NUM, INFRA, TRIGGER, WATCHER_START, build_population,
+                            FEATURES_NUM, INFRA, VOIDED_TRIGGER, WATCHER_START, build_population,
                             most_complete)
 from make_capture_funnel import accrual_rows, funnel_rows, write_csv
 from audit_capture_labels import is_registry_wildcard, registrable
+from watch_ct_brands import CLOUD_INTERNAL_SUFFIXES, CT_BRAND_OWNED, short_token_closed
+from watch_urlscan_brands import is_official
 
 SEC = os.path.join(ROOT, "papers", "P4b_infra_data", "sections")
 FIG = os.path.join(ROOT, "papers", "P4b_infra_data", "figures")
@@ -72,8 +75,8 @@ VN_SUPP_CSV = os.path.join(ROOT, "data", "raw", "ct_benign_vn", "detections.csv"
 P1_URL_CSV = os.path.join(PROC, "dataset_url.csv")
 VN_SUPP_START = "2026-08-21"   # the amendment that registered the .vn supplement (PREREG)
 VERDICTS = ("historical_feed_match", "credential_form", "vietnamese_content", "vn_lexical",
-            "vn_registry_gated", "uncorroborated", "no_capture", "reputation_screened",
-            "hosted_subdomain", "registry_wildcard")
+            "vn_registry_gated", "list_only_source", "uncorroborated", "no_capture",
+            "reputation_screened", "hosted_subdomain", "registry_wildcard")
 # Named, not sliced. `VERDICTS[:4]` put the admit set one careless insertion away from admitting
 # whatever landed at index 4 -- which is now `vn_registry_gated`, a REMOVAL reason.
 ADMIT_VERDICTS = frozenset({"historical_feed_match", "credential_form",
@@ -110,10 +113,19 @@ DEPOSIT = [
      "Every capture row, all sources (25 columns)"),
     ("data/infra_dataset.csv", DATASET_CSV, "rows",
      "Conditioned candidates/controls and label policy (20 columns)"),
+    ("data/hosted_stratum.csv", os.path.join(ROOT, "data", "processed", "infra",
+                                             "hosted_stratum.csv"), "rows",
+     "Provider-hosted lures, tenant-level fields only (12 columns)"),
     ("data/funnel.csv", FUNNEL_CSV, "rows", "Phishing-arm funnel: stage, surviving, removed"),
     ("data/accrual.csv", ACCRUAL_CSV, "rows", "Cumulative admitted domains by detection day"),
     ("data/label_audit.csv", LABEL_AUDIT_CSV, "rows",
      "Verdict, evidence flags, removal stage per candidate"),
+    # The source-tier policy makes label error a measured quantity; these two files are the
+    # measurement (per stratum, with intervals) and the adjudicated verdicts it applied.
+    ("data/label_validation.csv", os.path.join(PROC, "infra", "label_validation.csv"), "rows",
+     "Blinded two-annotator validation per stratum: agreement, mislabel rate, Wilson interval"),
+    ("data/label_review.csv", os.path.join(PROC, "infra", "label_review.csv"), "rows",
+     "Adjudicated verdicts applied to reviewed rows (label_status=reviewed)"),
     ("data/wildcard_probe.csv", PROBE_CSV, "rows",
      "Wildcard probe: suffix, probe name, date, answers"),
     ("data/live_resolve_cache.csv", os.path.join(PROC, "infra", "live_resolve_cache.csv"), "rows",
@@ -149,6 +161,13 @@ DEPOSIT = [
 def count_rows(path: str, unit: str) -> int | None:
     if not path or not os.path.exists(path):
         return None
+    # host_infra.csv is the one file the deposit does not ship verbatim: rows written before
+    # 2026-09-13 whose domain column cannot hold a hostname (a torn line, the 2026-07-20
+    # backfill's URLs, a name split with a space) are dropped there, all of them with zero A
+    # records. The table counts what the file will contain, not what is on this machine, or
+    # make_release refuses to build on the disagreement.
+    if os.path.abspath(path) == os.path.abspath(os.path.join(ROOT, INFRA)):
+        return filter_capture_rows(path)[0]
     with open(path, encoding="utf-8", errors="ignore", newline="") as f:
         if unit == "rows":
             return sum(1 for _ in csv.reader(f)) - 1
@@ -192,6 +211,61 @@ def write_files_table() -> dict[str, int]:
     return counts
 
 
+# `first_detected` in ct_brands/detections.csv is naive UTC. The deploy of the prefix query
+# (docs/decisions/ct-brands-prefix-query.md) and the day the feed's own filters went in
+# (docs/decisions/ct-brands-brand-owned.md).
+CT_PREFIX_FROM = "2026-09-18T16:45:00"
+CT_FILTERS_FROM = "2026-09-19"
+
+
+def ct_brands_regime_note() -> str:
+    """The note under the sources table that says `ct_brands` is three collectors in one column.
+
+    Permanent, unlike the dry-source note above it, and for that reason: that note explained the
+    query change only while the source was near-empty, so it would have left the paper at the
+    first build in which the new query had produced rows -- the build that needs it. The counts
+    are read from the collector's own ledger and the filters are imported from the collector, so
+    neither can drift from what ran."""
+    n_old = n_new = n_stopped = None
+    path = os.path.join(ROOT, "data", "raw", "ct_brands", "detections.csv")
+    if os.path.exists(path):
+        det = pd.read_csv(path, dtype=str).fillna("")
+        new = det["first_detected"] >= CT_PREFIX_FROM
+        n_old, n_new = int((~new).sum()), int(new.sum())
+        n_stopped = sum(
+            1 for d, b in zip(det["domain"], det["brand"])
+            if is_official(d, set(CT_BRAND_OWNED)) or d.endswith(CLOUD_INTERNAL_SUFFIXES)
+            or not short_token_closed(d, b))
+    # the gate works on registered domains, so a tenant host in the set is outside its reach
+    n_reg = sum(1 for n in CT_BRAND_OWNED if registrable(n) == n)
+    tenant = ("" if n_reg == len(CT_BRAND_OWNED) else
+              f". The other {len(CT_BRAND_OWNED) - n_reg} of the set are tenants' hosts on a shared "
+              "platform, which a gate that works on registered domains cannot single out")
+    old_n = f" ({fmt(n_old)} of the identities it has recorded)" if n_old is not None else ""
+    new_n = f" ({fmt(n_new)} identities to this snapshot)" if n_new is not None else ""
+    stopped = (f" {fmt(n_stopped)} of the {fmt(n_old + n_new)} identities on record would not be "
+               "recorded under those rules; they were, and they stay." if n_stopped is not None else "")
+    return (
+        "\n\\noindent\\footnotesize\n"
+        "\\textit{Note.} \\nolinkurl{ct_brands} was collected under three regimes, and no row is "
+        "rewritten when a regime changes. Until 2026-09-18 16:45 UTC the collector asked "
+        "\\nolinkurl{crt.sh} for a name pattern with a wildcard at both ends, which that service does "
+        "not match against hostnames: it answers with an empty result, not an error, and what it did "
+        f"return were organisation-name matches, mostly the brand's own hosts{old_n}. From then it "
+        f"asks for names that begin with a brand token{new_n}; a lookalike whose name does not begin "
+        "with the token is invisible to this source, and the first run under that query reported a "
+        "seven-day window at once, so it is a backfill and not a rate. From "
+        f"{CT_FILTERS_FROM} the collector also drops {len(CT_BRAND_OWNED)} names confirmed as the "
+        "brand's own, hosts under \\nolinkurl{amazonaws.com}, and names in which a token of four "
+        f"characters or fewer is followed by a letter.{stopped} The label gate screens the "
+        f"{n_reg} brand-owned names that are registered domains, so none of those reaches the "
+        "conditioned population" + tenant + ". From the same date the gate admits a domain that "
+        "only this source reported on an independent list match and on nothing the page or the name "
+        "says (removal verdict \\texttt{list\\_only\\_source}, Table~\\ref{tab:verdicts}), which is "
+        "why the last column of this row is small or zero. A comparison of this source's yield "
+        "across either date compares different collectors.\\normalsize\n")
+
+
 def write_sources_table(df: pd.DataFrame, pop: pd.DataFrame) -> None:
     """Rows per source as collected, and what each contributes to the conditioned population."""
     out = io.StringIO()
@@ -228,23 +302,32 @@ def write_sources_table(df: pd.DataFrame, pop: pd.DataFrame) -> None:
             # 404 from one host and 502 from another, and the failing-token count moved to 21 of
             # 34 while 13 tokens answered and genuinely found nothing. A note that asserts a
             # failure mode it is not reading is the hand-written date this comment warns about.
-            queried = failed = new_cands = None
+            # 2026-09-18: the line also carries an UNRESOLVED count, and this note ignored it, so
+            # it printed "all 190 tokens answered" over a run in which 170 had come back as an
+            # empty 200 -- and blamed a degraded upstream for what was the collector's own query
+            # pattern (scripts/ct_brands_note.md). Both counts are read now, and
+            # the cause is stated as the dated measurement it is.
+            queried = failed = unresolved = new_cands = None
             log_path = os.path.join("data", "raw", dry_src, "watch.log")
             if os.path.exists(log_path):
                 for line in open(log_path, encoding="utf-8", errors="replace"):
                     m = re.search(r"(\d+)/(\d+) tokens queried.*?-> (\d+) new candidate domains"
-                                  r"(?:.*?\| (\d+) FAILED)?", line)
+                                  r"(?:.*?\| (\d+) FAILED)?(?:.*?\| (\d+) UNRESOLVED)?", line)
                     if m:
                         queried, new_cands = int(m.group(2)), int(m.group(3))
                         failed = int(m.group(4)) if m.group(4) else 0
+                        unresolved = int(m.group(5)) if m.group(5) else 0
             if queried:
-                answered = queried - (failed or 0)
-                upstream = (f"{failed} of its {queried} brand tokens came back unreachable after "
-                            f"retries, and the {answered} that did answer yielded "
-                            f"\\texttt{{{new_cands} new candidate domains}}"
-                            if failed else
-                            f"all {queried} tokens answered and yielded "
-                            f"\\texttt{{{new_cands} new candidate domains}}")
+                parts = []
+                if unresolved:
+                    parts.append(f"{unresolved} queries came back as an empty answer for a pattern "
+                                 "that has never returned a certificate, which the collector books "
+                                 "as unresolved rather than as absence")
+                if failed:
+                    parts.append(f"{failed} came back unreachable after retries")
+                upstream = (f"it queried {queried} brand tokens" + ("; " if parts else "")
+                            + "; ".join(parts)
+                            + f"; and the run yielded \\texttt{{{new_cands} new candidate domains}}")
             else:
                 upstream = ("its run log records no summary line, so the split between an "
                             "unreachable upstream and an empty answer cannot be stated here")
@@ -252,11 +335,15 @@ def write_sources_table(df: pd.DataFrame, pop: pd.DataFrame) -> None:
                 "\n\\noindent\\footnotesize\n"
                 f"\\textit{{Note.}} \\nolinkurl{{{dry_src}}} holds {fmt(dry_rows)} rows because it has "
                 f"produced nothing since {since}, {days} days before this snapshot. The collector runs on "
-                "schedule and exits cleanly; its upstream, the certificate-transparency search at "
-                "\\nolinkurl{crt.sh}, has been degraded rather than absent. On the most recent run "
-                f"{upstream}. The row is reported at its true value rather than dropped: a source that ran "
+                "schedule and exits cleanly"
+                + ("; the cause was its own query, and is the first of the regimes described in the "
+                   "next note" if dry_src == "ct_brands" else "")
+                + f". On the most recent run in this snapshot {upstream}. The row is reported at its "
+                "true value rather than dropped: a source that ran "
                 "and found nothing is a different fact from one that was never run, and a data descriptor "
                 "that silently omits the first is describing a corpus it does not have.\\normalsize\n")
+    if "ct_brands" in present:
+        out.write(ct_brands_regime_note())
     out.write("\\end{table}\n")
     write_generated(os.path.join(SEC, "tab_sources.tex"), out.getvalue())
 
@@ -276,7 +363,14 @@ def write_counts(df: pd.DataFrame, pop: pd.DataFrame, funnel: dict) -> dict:
 
     cap = pd.to_datetime(df["captured_at"], errors="coerce")
     first_cap, last_cap = cap.min().date(), cap.max().date()
-    n_rows, n_hosts = len(df), int(df["domain"].nunique())
+    # Count the file the READER will hold, not the collector's log. The deposit ships
+    # host_infra.csv without the rows whose domain column cannot be a hostname, so describing the
+    # log here and the deposit in the file table put two different numbers on one file in one
+    # paper -- which is the drift this repository exists to prevent, and the file table's guard
+    # does not see this sentence.
+    _hostname_ok = df["domain"].astype(str).str.strip().str.lower().map(looks_like_hostname)
+    _df_shipped = df[_hostname_ok]
+    n_rows, n_hosts = len(_df_shipped), int(_df_shipped["domain"].nunique())
     n_sources = int(df["source"].nunique())
     ph = pop[pop["arm"] == "phish"]
     be = pop[pop["arm"] == "benign"]
@@ -310,6 +404,32 @@ def write_counts(df: pd.DataFrame, pop: pd.DataFrame, funnel: dict) -> dict:
         f"trust-registry comparator (\\texttt{{tinnhiem\\_benign}}) {n_cmp}; the two are never "
         f"pooled.\n")
     write_generated(os.path.join(SEC, "gen_counts.tex"), header + body)
+
+    # The two strata that sit BESIDE the population, written as their own sentence so a reader
+    # meets them where the counts are rather than in a limitation.
+    import pandas as _pd
+    hs = os.path.join(ROOT, "data", "processed", "infra", "hosted_stratum.csv")
+    if os.path.exists(hs):
+        _h = _pd.read_csv(hs)
+        top = _h["provider"].value_counts()
+        top_s = ", ".join(f"\\texttt{{{p.replace('_', chr(92) + '_')}}} ({n})"
+                          for p, n in top.head(3).items())
+        write_generated(os.path.join(SEC, "gen_strata.tex"),
+                        f"% hosted={len(_h)} providers={_h['provider'].nunique()}\n"
+                        f"% historical={funnel.get('phish_historical', 0)}\n"
+                        f"Two groups of detections sit beside that population and are never "
+                        f"pooled into it. {fmt(len(_h))} provider-hosted lures on "
+                        f"{_h['provider'].nunique()} hosting suffixes, led by {top_s}, are "
+                        f"reported in \\nolinkurl{{hosted_stratum.csv}} with tenant-level fields "
+                        f"only: the registration a name like these would contribute belongs to "
+                        f"the hosting provider, not to whoever placed the lure, so the "
+                        f"certificate, TTL and CNAME observed on the host are carried and the "
+                        f"nameserver, MX and WHOIS columns are not. "
+                        f"{funnel.get('phish_historical', 0)} further registrable domains reached "
+                        f"the live window from a feed that publishes a historical denylist "
+                        f"rather than live detections; they are recorded in "
+                        f"\\nolinkurl{{host_infra.csv}} under their own \\texttt{{source}} and "
+                        f"are outside the live stratum.\n")
     print(f"[i] counts: rows {n_rows:,}, live {live:,} -> gate {n_gate} -> conditioned {final} "
           f"(.vn {ph_vn}); benign {n_be} (.vn {be_vn}); comparator {n_cmp}")
     return keys
@@ -333,7 +453,7 @@ def write_macros(keys: dict, extra: dict[str, str]) -> dict[str, str]:
         "PbGateKept": fmt(keys["gate"]), "PbGateRemoved": fmt(keys["after_hosted"]
                                                               - keys["wild"] - keys["gate"]),
         "PbAdmitted": fmt(keys["phish"]),
-        "PbTriggerN": fmt(TRIGGER), "PbVnPhish": fmt(keys["phish_vn"]),
+        "PbTriggerN": fmt(VOIDED_TRIGGER), "PbVnPhish": fmt(keys["phish_vn"]),
         "PbVnPhishShare": str(vn_share), "PbBenignCT": fmt(keys["benign"]),
         "PbBenignCTvn": fmt(keys["benign_vn"]), "PbBenignVnSupp": fmt(supp),
         "PbVnSuppStart": VN_SUPP_START,

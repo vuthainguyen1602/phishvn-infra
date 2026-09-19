@@ -49,7 +49,7 @@ from genfile import write_generated
 # The funnel, the trigger and the population rule are imported rather than restated: this figure
 # must be the same object the table is, or it becomes a second source of truth for a number the
 # pre-specification turns on.
-from make_infra_assets import TRIGGER, build_population
+from make_infra_assets import VOIDED_TRIGGER, build_population
 
 SEC = os.path.join(ROOT, "papers", "P4_infra", "sections")
 FIG = os.path.join(ROOT, "papers", "P4_infra", "figures")
@@ -107,7 +107,7 @@ def project(acc: list[dict], days: int | None) -> tuple[float, dt.date | None]:
     if span <= 0 or gained <= 0:
         return (0.0, None)
     rate = gained / span
-    need = TRIGGER - acc[-1]["cumulative"]
+    need = VOIDED_TRIGGER - acc[-1]["cumulative"]
     return (rate, last + dt.timedelta(days=need / rate) if need > 0 else last)
 
 
@@ -148,31 +148,31 @@ def make_figure(fun: list[dict], acc: list[dict], proj: dict) -> str:
     xs = [dt.date.fromisoformat(r["date"]) for r in acc]
     ys = [r["cumulative"] for r in acc]
     ax2.plot(xs, ys, "-", color=BLUE, lw=1.6, zorder=3)
-    ax2.axhline(TRIGGER, color=INK, lw=0.9, ls=(0, (4, 3)), zorder=2)
+    ax2.axhline(VOIDED_TRIGGER, color=INK, lw=0.9, ls=(0, (4, 3)), zorder=2)
     # Anchored at the LEFT edge, not against the calendar bound: the whole-window projection's
     # label ends its second line at the same height, and the two ran together as "15 Oct trigger
     # n >= 500" (2026-09-02). Above the dashed line on the left the curve is still near zero, so
     # the space is free whatever the projections do.
-    ax2.annotate(f"trigger $n \\geq {TRIGGER}$", (xs[0], TRIGGER),
+    ax2.annotate(f"trigger $n \\geq {VOIDED_TRIGGER}$ (voided 2026-09-09)", (xs[0], VOIDED_TRIGGER),
                  textcoords="offset points", xytext=(2, 5), fontsize=7.5, color=INK,
                  ha="left")
     ax2.axvline(CALENDAR_BOUND, color=GRAY, lw=0.9, ls=(0, (2, 3)), zorder=2)
-    ax2.annotate("calendar bound\n(analyse anyway)", (CALENDAR_BOUND, TRIGGER * 0.42),
+    ax2.annotate("calendar bound\n(analyse anyway)", (CALENDAR_BOUND, VOIDED_TRIGGER * 0.42),
                  textcoords="offset points", xytext=(-4, 0), fontsize=7, color=INK, ha="right")
 
     for key, colour, dash in (("all", BLUE, (0, (5, 2))), ("trailing", ORANGE, (0, (1, 2)))):
         p = proj[key]
         if not p["date"]:
             continue
-        ax2.plot([xs[-1], p["date"]], [ys[-1], TRIGGER], ls=dash, color=colour, lw=1.1,
+        ax2.plot([xs[-1], p["date"]], [ys[-1], VOIDED_TRIGGER], ls=dash, color=colour, lw=1.1,
                  alpha=0.9, zorder=2)
-        ax2.scatter([p["date"]], [TRIGGER], s=18, color=colour, zorder=4)
+        ax2.scatter([p["date"]], [VOIDED_TRIGGER], s=18, color=colour, zorder=4)
         label = "whole window" if key == "all" else f"trailing {TRAIL_DAYS} d"
         ax2.annotate(f"{label}: {p['rate']:.1f}/day\n{p['date'].strftime('%d %b')}",
-                     (p["date"], TRIGGER), textcoords="offset points",
+                     (p["date"], VOIDED_TRIGGER), textcoords="offset points",
                      xytext=(4, 10 if key == "all" else -20), fontsize=7, color=colour,
                      ha="left")
-    ax2.set_ylim(0, TRIGGER * 1.28)
+    ax2.set_ylim(0, VOIDED_TRIGGER * 1.28)
     ax2.set_xlabel("detection date")
     ax2.set_ylabel("conditioned phishing domains")
     ax2.set_title("accrual toward the trigger", fontsize=8.5)

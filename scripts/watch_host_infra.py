@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import re
 import socket
 import ssl
 import sys
@@ -46,6 +47,7 @@ try:
     add_script_dirs()
 except ImportError:          # flat layout (public mirror): scripts/ sits under ROOT
     ROOT = os.path.dirname(_HERE)
+from hostname import looks_like_hostname
 from psl import registered_domain
 
 OUTDIR = os.path.join("data", "raw", "host_infra")
@@ -65,6 +67,11 @@ SOURCES = {
     # Its own source so the analysis can confine it to .vn matching cells.
     "ct_benign_vn": ("benign", "first_detected"),
 }
+
+# A detections.csv is written by a different collector, and a value read out of one is not
+# necessarily a hostname: a torn line, a URL written into the domain column, a name split with a
+# space in it. The test lives in scripts/hostname.py, with the incident that produced it,
+# because the deposit tooling has to drop exactly what this collector refuses to enrich.
 
 FIELDS = [
     "domain", "registered_domain", "source", "label", "first_detected", "captured_at", "attempt",
@@ -225,7 +232,7 @@ def load_candidates(fresh_hours: float = FRESH_HOURS) -> list:
     phishing first, then benign, stale backlog last. Sorting all phishing first put 4,748
     long-dead backlog domains ahead of every benign domain — starving the benign arm on captures
     yielding ~11% that the study discards anyway. Stale phishing is already spoiled."""
-    rows, seen = [], set()
+    rows, seen, rejected = [], set(), []
     now = datetime.now()
     for src, (label, datecol) in SOURCES.items():
         path = os.path.join("data", "raw", src, "detections.csv")
@@ -234,6 +241,9 @@ def load_candidates(fresh_hours: float = FRESH_HOURS) -> list:
         with open(path, newline="", encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 d = (r.get("domain") or "").strip().lower()
+                if d and not looks_like_hostname(d):
+                    rejected.append((src, d[:60]))
+                    continue
                 if d and d not in seen:
                     seen.add(d)
                     rows.append((d, src, label, (r.get(datecol) or "").strip()))
@@ -252,6 +262,11 @@ def load_candidates(fresh_hours: float = FRESH_HOURS) -> list:
 
     rows.sort(key=lambda t: t[3], reverse=True)      # newest first ...
     rows.sort(key=priority)                          # ... within perishable / benign / stale
+    # Loud, not silent: a torn line in a collector's output is that collector's problem to fix,
+    # and a reader that drops rows without saying so hides the breakage it is protecting against.
+    if rejected:
+        print(f"[!] {len(rejected)} value(s) in a domain column are not hostnames and were NOT "
+              f"enriched: " + ", ".join(f"{src}:{dom!r}" for src, dom in rejected[:5]))
     return rows
 
 

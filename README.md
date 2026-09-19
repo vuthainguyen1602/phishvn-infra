@@ -4,7 +4,7 @@
 > supplement carries source-derived labels; neither archive claims completed human
 > validation. Final release version and reviewer access remain pending.
 
-> **Label policy updated 8 September 2026:** see [v2 policy](label_policy_v2.md).
+> **Label policy: source tiers, version 3.0.0 (15 September 2026):** see [label_policy_v3.md](label_policy_v3.md). `label` is the source's assertion with a `label_status` for its evidence; label error is measured on a blinded sample (`label_validation.csv`). The stricter 8 September experiment is archived in [label_policy_v2.md](label_policy_v2.md).
 > The counts and screen terminology below document the historical v1 snapshot;
 > reputation and heuristic signals are not verified outcome labels.
 
@@ -59,6 +59,7 @@ scripts/                     flat layout: every module imports its siblings by b
   watch_host_infra.py        the infrastructure watcher (DNS / WHOIS / TLS at detection time)
   watch_ct_benign.py         CT-sampled, age-matched benign arm; --stratum vn for the .vn supplement
   watch_urlscan_brands.py    the live phishing channel (brand-token urlscan search + capture)
+  watch_ct_brands.py         CT brand-token feed (crt.sh, prefix query); the label gate imports its brand-owned set
   watch_chongluadao.py       capture helpers the urlscan channel imports
   audit_capture_labels.py         the label gate and the registry-wildcard probe
   make_infra_assets.py          build_population(): strata, wildcard screen, gate, dedup, conditioning

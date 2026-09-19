@@ -4,9 +4,8 @@
 > supplement carries source-derived labels; neither archive claims completed human
 > validation. Final release version and reviewer access remain pending.
 
-> **Label policy updated 8 September 2026:** see [v2 policy](label_policy_v2.md).
-> The counts and screen terminology below document the historical v1 snapshot;
-> reputation and heuristic signals are not verified outcome labels.
+> **Label policy: source tiers, version 3.0.0 (15 September 2026):** see [label_policy_v3.md](label_policy_v3.md). `label` is the source's assertion with a `label_status` for its evidence; label error is measured on a blinded sample (`label_validation.csv`). The stricter 8 September experiment is archived in [label_policy_v2.md](label_policy_v2.md).
+> Reputation and heuristic signals screen candidates; they are not verified outcomes.
 
 # Schema: `host_infra.csv`
 
@@ -113,7 +112,13 @@ collected; the columns hold dates and registrar names only.
 ## Derived files
 
 - `infra_dataset.csv`: the conditioned population, one row per registrable domain per arm,
-  with `arm` and the gate `verdict`; produced by `make_infra_assets.py`.
+  with `arm`, the gate `verdict` and the four source-tier label fields `label, label_status,
+  training_eligible, policy_version` ([label_policy_v3.md](label_policy_v3.md)); produced by `make_infra_assets.py`.
+- `label_validation.csv`: the blinded two-annotator validation of the labels, one row per stratum
+  plus weighted rows per arm: `stratum, arm, stratum_size, sampled, reviewed, agreement, resolved,
+  unresolved, mislabelled, mislabel_rate, ci_lo, ci_hi`, with `status` pending or complete.
+- `label_review.csv`: the adjudicated verdicts the validation applied to reviewed rows (`domain,
+  annotator_a, annotator_b, adjudicated_label, evidence_url, evidence_file, evidence_sha256`).
 - `funnel.csv`: `stage, surviving, removed, note`; `accrual.csv`: `date, cumulative` admitted phishing
   registrable domains by detection day; both produced by `make_capture_funnel.py`.
 - `label_audit.csv`: `registered_domain, source, first_detected, verdict, stage_removed` and the evidence columns `in_tranco, in_allowlist, blocklists, renders_vietnamese, credential_form, vn_lexical` (no page content).

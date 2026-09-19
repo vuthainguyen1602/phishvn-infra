@@ -17,6 +17,56 @@ from urllib.parse import urlsplit, urlunsplit
 
 POLICY_VERSION = '2.0.0'
 
+# --- Source-tier policy (version 3.0.0, 15 September 2026) ---------------------------------
+# The strict v2 policy above left every deposited row `label=unknown`, because it admits a
+# label only after two identified reviewers have adjudicated time-matched evidence, and no such
+# review exists for the population. Version 3 does what the published URL corpus and the
+# feed-derived datasets in the literature do: `label` is the SOURCE'S assertion, carried with a
+# status that says what evidence backs it, and label correctness is MEASURED on a stratified,
+# blinded, two-annotator sample rather than asserted row by row. A reviewed row overrides its
+# source; an `unsure` review withdraws the row from training rather than guessing.
+SOURCE_TIER_VERSION = '3.0.0'
+LABELS = ('phishing', 'benign', 'unknown')
+# Ordered from weakest to strongest evidence behind the source assertion.
+STATUS_ORDER = ('source_reported', 'content_corroborated', 'feed_reported', 'reviewed')
+# Which screen verdict maps to which status for the phishing arm. A verdict absent here
+# (removed classes) carries no label at all.
+VERDICT_STATUS = {
+    'vn_lexical': 'source_reported',           # feed/brand-query assertion, name-level cue only
+    'vietnamese_content': 'content_corroborated',  # capture-time page evidence
+    'credential_form': 'content_corroborated',
+    'historical_feed_match': 'feed_reported',  # exact-host record in a second, independent list
+}
+ARM_LABEL = {'phish': 'phishing', 'benign': 'benign', 'benign_tinnhiem': 'benign'}
+
+
+def source_tier(arm, verdict='', *, conflict=False, review=None):
+    """Label fields for one deposited row under the source-tier policy.
+
+    arm       acquisition arm (phish | benign | benign_tinnhiem)
+    verdict   screen verdict for a phishing candidate; '' for benign arms
+    conflict  a feed report coexists with a Tranco/allow-list hit (never admitted, kept for
+              label_audit.csv where such rows are listed)
+    review    adjudicated verdict from the blinded review, when the row was sampled:
+              'phishing' | 'benign' | 'unsure'
+    """
+    label = ARM_LABEL.get(arm, 'unknown')
+    if arm == 'phish':
+        status = VERDICT_STATUS.get(verdict, '')
+        if not status:
+            label = 'unknown'
+    else:
+        status = 'source_reported' if label != 'unknown' else ''
+    eligible = int(label in ('phishing', 'benign'))
+    if conflict:
+        label, status, eligible = 'unknown', 'conflict', 0
+    if review in ('phishing', 'benign'):
+        label, status, eligible = review, 'reviewed', 1
+    elif review == 'unsure':
+        label, status, eligible = 'unknown', 'reviewed', 0
+    return {'label': label, 'label_status': status, 'training_eligible': eligible,
+            'policy_version': SOURCE_TIER_VERSION}
+
 
 def observable(value: str) -> tuple[str, str]:
     """Return an exact normalized host and conservative URL key; reject malformed values."""
