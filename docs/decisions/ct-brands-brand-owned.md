@@ -1,4 +1,4 @@
-# CT brand watcher: ten brand-owned names and two noise rules, 2026-09-19
+# CT brand watcher: eleven brand-owned names and two noise rules, 2026-09-19
 
 **Applies to:** `scripts/watch_ct_brands.py` (`CT_BRAND_OWNED`, `CLOUD_INTERNAL_SUFFIXES`, `short_token_closed()`), source
 `ct_brands` in `data/raw/ct_brands/` and wherever that source name is carried downstream.
@@ -45,9 +45,19 @@ records, certificate history and landing pages (2026-09-19, about 09:30 +07):
 
 Both rows stay in `detections.csv` like the other nine.
 
+## An eleventh, on the registry's record
+
+`tpbankgroup.com.vn` was left open in the morning because the `.vn` registrant cannot be read from
+the command line. The author read the registry's WHOIS that afternoon: registrant Ngân Hàng
+Thương Mại Cổ Phần Tiên Phong, registrar P.A Việt Nam, registered 2008-04-01, expiring 2031-04-01,
+delegated to `a1-195.akam.net` and `a8-65.akam.net`, which are two of the name servers the
+morning's DNS measurement had returned. It joins the set. The name had no address and no page
+when it was reported, so it was never captured and never reached the label gate's admitted
+classes.
+
 ## Left open on purpose
 
-Five hosts the check did not settle remain candidates and are not filtered by this set. What was
+Four hosts the check did not settle remain candidates and are not filtered by this set. What was
 measured about each is kept in the development repository, not here: it describes third parties'
 infrastructure, and a candidate is not a finding.
 

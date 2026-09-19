@@ -64,6 +64,9 @@ CT_BRAND_OWNED = frozenset({
     # and name servers as viettelcloud.vn; and one tenant HOST on cloudhms.io, whose registrant is
     # Vingroup's hotel-software company. The platform itself is multi-tenant and is not listed.
     "viettelcloud.com.vn", "vinpearltravel.cloudhms.io",
+    # the registry's own WHOIS, read by the author on 2026-09-19: registrant Ngan Hang TMCP Tien
+    # Phong, registered 2008, delegated to the two Akamai name servers measured the same morning
+    "tpbankgroup.com.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).
