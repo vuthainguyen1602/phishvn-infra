@@ -326,7 +326,16 @@ def load_allowlists() -> set[str]:
         "dichvucongnghiephc.vn", "xaydungvadichvucongnghiepvanan.com", "dichvucongtybacninh.vn",
         # verified official e-commerce & shipping platforms
         "shopee.vn", "lazada.vn", "tiki.vn", "sendo.vn", "aeon.com.vn", "aeon.vn",
-        "giaohangnhanh.vn", "ghn.vn"
+        "giaohangnhanh.vn", "ghn.vn",
+        # A white-label "mua sam hoan tien" (shopping cashback) webview embedded in banking apps,
+        # admitted on 2026-09-15 as content-corroborated phishing because the error page it shows
+        # without the app's token is in Vietnamese. Evidence that does not come from the page:
+        # registered 2020-08-08 at a Vietnamese registrar; 377 certificates since 2020 for
+        # `webview-<bank>` and `<bank>` names of nine banks plus crm/status/upload; and that bank
+        # set overlaps the participants press and bank pages list for a multi-bank cashback
+        # platform (CafeF 2023-12-19; tpb.vn). No source names this domain, so WHO operates it is
+        # an inference; that it is an operator's platform and not a lure is what is claimed.
+        "atcashback.com",
     }
     out |= LEGIT_VN_ENTITIES
     return {d for d in out if d and d != "nan"}
