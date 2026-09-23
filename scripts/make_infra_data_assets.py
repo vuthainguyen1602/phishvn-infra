@@ -84,7 +84,11 @@ ADMIT_VERDICTS = frozenset({"historical_feed_match", "credential_form",
 
 SOURCE_LABEL = {
     "vn_phishing_live": ("phish", "national blacklist, live poll"),
-    "chongluadao_live": ("phish", "community blocklist, live poll"),
+    # Not a live poll like the row above it: the collector unions a GitHub mirror of the
+    # ChongLuaDao list, whose urls.txt has not changed since 2024-05-16, with the rotating
+    # sample the live page server-renders. Depth is a 2024 snapshot; only the sample is
+    # current, and the two sit under one source name (verified 2026-09-23).
+    "chongluadao_live": ("phish", "community blocklist, 2024 mirror + live sample"),
     "urlscan_brands": ("phish", "urlscan brand-token queries"),
     "ct_brands": ("phish", "CT brand-token polling"),
     "tinnhiem_benign": ("benign", "trust-registry comparator"),

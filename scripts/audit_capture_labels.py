@@ -187,7 +187,7 @@ def _resolve_cached(domain: str) -> frozenset[str]:
 
 
 def is_registry_wildcard(domain: str, recorded_ips: frozenset[str] | None = None) -> bool:
-    """Does this name exist only as its registry's wildcard answer?
+    """Are the observed addresses compatible with the registry wildcard probe?
 
     Prefers capture-time recorded addresses; uncached live queries require explicit reprobe. A
     registered domain parked on the registry's IP is excluded too -- its infrastructure is still the

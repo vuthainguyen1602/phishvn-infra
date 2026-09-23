@@ -82,9 +82,12 @@ echo
 # Show recent complaints in last N lines
 TAIL_LINES=400
 echo "recent complaints (last ${TAIL_LINES} log lines per collector):"
-for l in */watch.log */crawl.log */cron.log; do
+for l in */watch.log */crawl.log */cron.log */sync.log; do
   [ -f "$l" ] && tail -n "$TAIL_LINES" "$l"
-done 2>/dev/null | grep -hoE '\[!\][^|]{0,90}' | sort | uniq -c | sort -rn | head -6 || echo "  (none)"
+done 2>/dev/null | grep -hoE '\[!\][^|]{0,90}' \
+  | sed -E 's/^\[!\] [A-Za-z0-9._-]+%: crt\.sh/[!] <token>%: crt.sh/' \
+  | sort | uniq -c | sort -rn | head -8 || echo "  (none)"
+# crt.sh flaps per brand token; one bucket for them, or six tokens hide every other complaint.
 for l in */watch.log */cron.log; do
   [ -f "$l" ] && tail -n "$TAIL_LINES" "$l"
 done 2>/dev/null | grep -hoE 'ModuleNotFoundError[^|]{0,60}' | sort | uniq -c | sort -rn | head -3 || true
