@@ -134,6 +134,22 @@ DEFAULT_TOKENS = [
     "dautuchungkhoan", "vpschungkhoan", "ssichungkhoan", "dragoncapital", "vinacapital",
     # traffic violations & licenses (GPLX)
     "gplx", "tracuugplx",
+    # traffic-fine notices (phạt nguội). Added 2026-09-26: the makefamousapp.com mini-app kit
+    # family (miniapp-thongbaophatnguoi-{vnpay,viettel,bidv}) was caught only through its bank
+    # and carrier tokens; a skin of that kit naming no brand would have passed unseen. The
+    # official lookup is csgt.vn, already on the whitelist. Mid-study note: the revisit cohort
+    # admits from this feed, so this widening carries a dated amendment in PREREG_subdomain.
+    "phatnguoi", "thongbaophatnguoi",
+    # abused hosting platform, not a brand. Added 2026-09-26 (second amendment of the day): three
+    # phishing skins sat on service.makefamousapp.com between 31 July and 27 August, each caught
+    # only through its bank token; a fourth skin naming no brand would pass unseen. On the
+    # urlscan side page.domain:*makefamousapp* covers every subdomain someone scans; on the CT
+    # side the platform's wildcard certificate makes the token inert, which is fine. The broad
+    # free-tier platforms (pages.dev, workers.dev) are deliberately NOT here: their token would
+    # match millions of benign sites, invert the base rate the label gate assumes, and drain the
+    # API budget — hosted-subdomain abuse at that scale is measured by the infrastructure
+    # dataset's hosted-subdomain stratum and the revisit study's wildcard probe instead.
+    "makefamousapp",
     # retail promotions, giveaways & lucky wheels
     "dienmayxanh", "thegioididong", "vongquaymayman", "tangquatrien", "nhanquamienphi", "trungthuong",
     # concert tickets, event booking & ticketbox scams
