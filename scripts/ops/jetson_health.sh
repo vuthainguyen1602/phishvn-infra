@@ -85,9 +85,11 @@ echo "recent complaints (last ${TAIL_LINES} log lines per collector):"
 for l in */watch.log */crawl.log */cron.log */sync.log; do
   [ -f "$l" ] && tail -n "$TAIL_LINES" "$l"
 done 2>/dev/null | grep -hoE '\[!\][^|]{0,90}' \
-  | sed -E 's/^\[!\] [A-Za-z0-9._-]+%: crt\.sh/[!] <token>%: crt.sh/' \
-  | sort | uniq -c | sort -rn | head -8 || echo "  (none)"
+  | sed -E 's/^\[!\] %?[A-Za-z0-9._-]+%: crt\.sh/[!] <token>%: crt.sh/' \
+  | sort | uniq -c | sort -rn | head -12 || echo "  (none)"
 # crt.sh flaps per brand token; one bucket for them, or six tokens hide every other complaint.
+# Both query forms (`token%` and `%token%`) fold into it: until 2026-10-02 only the first did, and
+# the `%token%` lines filled the eight slots and hid a one-line complaint below them.
 for l in */watch.log */cron.log; do
   [ -f "$l" ] && tail -n "$TAIL_LINES" "$l"
 done 2>/dev/null | grep -hoE 'ModuleNotFoundError[^|]{0,60}' | sort | uniq -c | sort -rn | head -3 || true

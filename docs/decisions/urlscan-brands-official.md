@@ -24,6 +24,9 @@ registry or registrar record whose name servers match live DNS (`whois_vn.py`, l
 | 2026-10-02 | `viettelsecurity.vn` | Registrant: Công ty An ninh mạng Viettel (chi nhánh Tập đoàn Công nghiệp - Viễn thông Quân đội); registered 2022-07-21; NS match. Flagged by `check_brand_registrants.py` (second pass), confirmed by the author. | No cohort row |
 | 2026-10-02 | `isacombank.com.vn` | Registrant: Ngân hàng TMCP Sài Gòn Thương Tín; registered 2013-02-27; NS match. Flagged by `check_brand_registrants.py` (second pass), confirmed by the author. | No cohort row |
 | 2026-10-02 | `sacombank-sbr.com.vn` | Registrant: Công ty TNHH MTV Kiều hối Ngân hàng Sài Gòn Thương Tín; registered 2026-08-26; NS match. Flagged by `check_brand_registrants.py` (second pass), confirmed by the author. | No cohort row |
+| 2026-10-02 | `vnptmedia.vn` | Registrant: Tập đoàn Bưu chính Viễn thông Việt Nam; registered 2015-07-29; NS match. Flagged by `check_brand_registrants.py` (third pass), confirmed by the author. | Yes: `vnptmedia.vn` itself, in the revisit cohort from 2026-09-29 and the cloaking cohort's confirmatory stratum from 2026-09-28 |
+| 2026-10-02 | `vietinbanktransfer.vn` | Registrant: Công ty TNHH MTV Chuyển tiền Toàn Cầu (Ngân hàng TMCP Công thương Việt Nam); registered 2024-12-16; NS mismatch, confirmed on the registrant. Flagged by `check_brand_registrants.py` (third pass), confirmed by the author. | No cohort row |
+| 2026-10-02 | `vietinbankgold.vn` | Registrant: Công ty TNHH MTV Vàng bạc đá quý Ngân hàng TMCP Công thương Việt Nam; registered 2011-01-24; NS match. Flagged by `check_brand_registrants.py` (third pass), confirmed by the author. | No cohort row |
 
 A brand-owned name seen only by the CT watcher goes in `CT_BRAND_OWNED` instead
 (`ct-brands-brand-owned.md`), never in both: the CT watcher reads the union of the two sets.

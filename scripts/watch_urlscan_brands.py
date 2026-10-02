@@ -310,7 +310,9 @@ def load_official() -> set[str]:
                 "vnptioffice.vn", "lienvietpostbank.vn", "mobifone8.com.vn",
                 # the check's second pass, confirmed by the author the same morning
                 "vnptquangtri.com.vn", "vnptmoney.vn", "vnpayment.vn", "viettelcybersecurity.com.vn",
-                "viettelsecurity.vn", "isacombank.com.vn", "sacombank-sbr.com.vn"}
+                "viettelsecurity.vn", "isacombank.com.vn", "sacombank-sbr.com.vn",
+                # the check's third pass, confirmed by the author the same day
+                "vnptmedia.vn", "vietinbanktransfer.vn", "vietinbankgold.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
