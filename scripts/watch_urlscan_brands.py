@@ -303,7 +303,14 @@ def load_official() -> set[str]:
                 "bidvinfo.com.vn",
                 # 2026-10-02: VNPT Group's own (registrant on the registrar-API record, host on
                 # VNPT's AS135905)
-                "vnptvas.vn"}
+                "vnptvas.vn",
+                # 2026-10-02, flagged by check_brand_registrants.py and confirmed by the author:
+                # each registrant is the brand or a unit of it, NS matching live DNS
+                "viettelpost.vn", "bidv.vn", "vnptpay.vn", "vnptmoney.com.vn", "vnptdata.vn",
+                "vnptioffice.vn", "lienvietpostbank.vn", "mobifone8.com.vn",
+                # the check's second pass, confirmed by the author the same morning
+                "vnptquangtri.com.vn", "vnptmoney.vn", "vnpayment.vn", "viettelcybersecurity.com.vn",
+                "viettelsecurity.vn", "isacombank.com.vn", "sacombank-sbr.com.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
