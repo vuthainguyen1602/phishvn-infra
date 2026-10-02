@@ -114,3 +114,11 @@ As with the brand-owned set, the 25 rows these rules would have stopped stay in
 source has a third regime boundary on 2026-09-19 for the five short tokens only. Longer tokens
 that collide with English (`payoodle.com`, `abbankingsley98.workers.dev`,
 `homecreditlenders.com`) are not covered by either rule and remain in the yield.
+
+
+## 2026-10-02: a thirteenth name
+
+`agribankhatinh2.com.vn`: registrant on the registrar-API record is Agribank's Ha Tinh II branch
+(registered 2025-09-26). The record lists `ns1/ns2.matbao.vn` and live DNS answers
+`ns1/ns2.matbao.com`: one provider, Mat Bao, which is also the registrar and hosts the address
+(103.138.88.29). The page served a 404 when the author opened it. Added by the author the same day.

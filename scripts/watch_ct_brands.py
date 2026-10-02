@@ -69,6 +69,9 @@ CT_BRAND_OWNED = frozenset({
     "tpbankgroup.com.vn",
     # registrar-API record of 2026-09-19: the same VNPT cloud centre that registered vnptcloud.vn
     "vnptplatform.vn",
+    # 2026-10-02, registrar-API record: registrant Agribank's Ha Tinh II branch, registrar, name
+    # servers and hosting all Mat Bao (the listed matbao.vn and live matbao.com are one provider)
+    "agribankhatinh2.com.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).

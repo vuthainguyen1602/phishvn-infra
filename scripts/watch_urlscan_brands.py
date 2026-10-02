@@ -297,7 +297,13 @@ def load_official() -> set[str]:
                 # notary, technology & industrial compound entities
                 "dichvucongchung.com.vn", "dichvucongchung.org", "dichvucongchung.com", "dichvucongchung.info",
                 "dichvucongnghe.net", "dichvucongnghe.io.vn", "dichvucongnghiephc.vn", "dichvucongnghiepdl.com",
-                "xaydungvadichvucongnghiepvanan.com", "dichvucongtybacninh.vn"}
+                "xaydungvadichvucongnghiepvanan.com", "dichvucongtybacninh.vn",
+                # 2026-10-02: BIDV's own news portal. Registrant on the registrar-API record is the
+                # bank (whois_vn ledger, NS match); see docs/decisions/urlscan-brands-official.md
+                "bidvinfo.com.vn",
+                # 2026-10-02: VNPT Group's own (registrant on the registrar-API record, host on
+                # VNPT's AS135905)
+                "vnptvas.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
