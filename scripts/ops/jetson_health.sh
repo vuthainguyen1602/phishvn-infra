@@ -4,13 +4,17 @@
 # Reports process health (RAN: log freshness) and yield (FOUND: data growth).
 #
 # USAGE:  ./scripts/ops/jetson_health.sh [user@host]      (default: $JETSON_HOST)
+#         SSH_OPTS="-o HostKeyAlias=192.168.1.50" ./scripts/ops/jetson_health.sh user@192.168.1.81
+#   SSH_OPTS: extra ssh options, word-split (a DHCP address change keeps the known_hosts entry
+#   usable through HostKeyAlias instead of a "Host key verification failed" exit).
 set -euo pipefail
 # No default host. The account name and LAN address of a real device were baked in here and
 # shipped to the public mirror; the script takes them from the argument or JETSON_HOST instead.
 HOST="${1:-${JETSON_HOST:-}}"
 [ -n "$HOST" ] || { echo "usage: $0 user@host   (or set JETSON_HOST)" >&2; exit 2; }
 
-ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" 'bash -s' <<'REMOTE'
+read -ra SSH_EXTRA <<<"${SSH_OPTS:-}"
+ssh -o BatchMode=yes -o ConnectTimeout=15 ${SSH_EXTRA[@]+"${SSH_EXTRA[@]}"} "$HOST" 'bash -s' <<'REMOTE'
 set -u
 cd ~/PhishVN/data/raw 2>/dev/null || { echo "no ~/PhishVN/data/raw on this host"; exit 1; }
 now=$(date +%s)
