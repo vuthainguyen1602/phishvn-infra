@@ -72,6 +72,10 @@ CT_BRAND_OWNED = frozenset({
     # 2026-10-02, registrar-API record: registrant Agribank's Ha Tinh II branch, registrar, name
     # servers and hosting all Mat Bao (the listed matbao.vn and live matbao.com are one provider)
     "agribankhatinh2.com.vn",
+    # 2026-10-03, registrar-API records flagged by check_brand_registrants.py and confirmed by the
+    # author: Viettel's enterprise-solutions corporation and its trading company as registrants,
+    # name servers matching live DNS (tenten.vn and viettelidc.com.vn)
+    "viettelstudy.vn", "viettelprinting.com.vn", "viettelprinting.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).

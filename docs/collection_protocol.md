@@ -38,7 +38,7 @@ against hostnames: what came back were organizationName matches, mostly the bran
 From then it asks `token%`, so it sees names that BEGIN with a brand token and no others; the
 first tick under that query reported up to a week of certificates at once and is a backfill, not
 a rate. From 2026-09-19 it also drops twelve names confirmed as the brand's own (`CT_BRAND_OWNED`; a
-thirteenth from 2026-10-02),
+thirteenth from 2026-10-02, three more from 2026-10-03),
 hosts under `amazonaws.com`, and names in which a token of four characters or fewer is followed
 by a letter (`short_token_closed()`). A reader who wants the source as it is now collected
 applies those three to the `domain` and `brand` columns of earlier rows; the label gate

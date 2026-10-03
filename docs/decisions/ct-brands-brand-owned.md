@@ -122,3 +122,18 @@ that collide with English (`payoodle.com`, `abbankingsley98.workers.dev`,
 (registered 2025-09-26). The record lists `ns1/ns2.matbao.vn` and live DNS answers
 `ns1/ns2.matbao.com`: one provider, Mat Bao, which is also the registrar and hosts the address
 (103.138.88.29). The page served a 404 when the author opened it. Added by the author the same day.
+
+
+## 2026-10-03: three more names, the fourteenth to sixteenth
+
+Flagged by `check_brand_registrants.py` (its fourth pass, run 2026-10-02 04:30 UTC) and
+confirmed by the author on 2026-10-03.
+
+- `viettelstudy.vn`: registrant Tổng Công ty Giải pháp Doanh nghiệp Viettel (a branch of the
+  Viettel group); registered 2013-01-29 at GMO-Z.com RUNSYSTEM; the record's `ns4/5/6.tenten.vn`
+  match live DNS. Reported with the token `viettel` on 2026-09-20.
+- `viettelprinting.com.vn` and `viettelprinting.vn`: one registrant, Công ty TNHH Nhà nước MTV
+  Thương mại và Xuất nhập khẩu Viettel (the trading company that also holds `viettelstore.vn`);
+  both registered 2009-11-18 at GMO-Z.com RUNSYSTEM; the record's `ns/ns1/ns2.viettelidc.com.vn`
+  match live DNS, and both resolve to the same two Viettel IDC addresses. Reported with the token
+  `viettel` on 2026-09-22.
