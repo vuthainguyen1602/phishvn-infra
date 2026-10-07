@@ -76,6 +76,21 @@ for r in "${rows[@]}"; do
 done
 
 echo
+# An upstream feed dying is invisible in the table: the collector still runs every hour (RAN ok),
+# still touches its ledger within a day (FOUND not DRY) and simply records nothing. Measured
+# 2026-10-06: the previous 30 days brought 76 new vn_phishing_live rows, 71 of them from the
+# free OpenPhish list (capped at 300 global entries), 0 from Phishing.Database whose ACTIVE list
+# now only repeats names already seen. One free feed is what keeps the row alive, so count the
+# rows detected in the last four days (first_detected is column 3; the first three columns carry
+# no commas) and say so when there are none. Whitespace days of one or two are normal.
+cut4=$(date -d '4 days ago' +%Y-%m-%d 2>/dev/null || date -v-4d +%Y-%m-%d)
+n4=$(awk -F, -v c="$cut4" 'NR>1 && substr($3,1,10) >= c' vn_phishing_live/detections.csv 2>/dev/null | wc -l | tr -d ' ')
+if [ "${n4:-0}" -eq 0 ]; then
+  echo "FEED DRY: vn_phishing_live has 0 rows detected since $cut4 -- the collector ran, the feeds gave nothing new; run the feed aggregator by hand, one source at a time, and read each feed's count"
+else
+  echo "vn_phishing_live: $n4 rows detected since $cut4"
+fi
+
 # ChongLuaDao snapshot backlog countdown
 left=$(grep -oE 'processed [0-9]+/[0-9]+ new VN' chongluadao_live/watch.log 2>/dev/null | tail -1 || true)
 [ -n "$left" ] && echo "chongluadao backlog: $left"

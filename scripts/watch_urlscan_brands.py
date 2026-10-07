@@ -315,7 +315,10 @@ def load_official() -> set[str]:
                 "vnptmedia.vn", "vietinbanktransfer.vn", "vietinbankgold.vn",
                 # the check's fourth pass (2026-10-03), confirmed by the author: MB Bank, VNPAY
                 # and a VNPT centre as registrants, NS matching live DNS
-                "wsa-mbbank.com.vn", "vnpaycloud.vn", "vnpt-bhxh.vn"}
+                "wsa-mbbank.com.vn", "vnpaycloud.vn", "vnpt-bhxh.vn",
+                # the check's fifth pass (2026-10-04), confirmed by the author: VNPT's IT company
+                # as registrant, NS matching live DNS, host on VNPT's AS135905
+                "vnptgreen.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
