@@ -37,3 +37,16 @@ def registered_domain(host: str) -> str:
     if len(parts) >= 3 and ".".join(parts[-2:]) in _TWO_LEVEL:
         return ".".join(parts[-3:])
     return ".".join(parts[-2:]) if len(parts) >= 2 else host
+
+
+def has_public_suffix(host: str) -> bool:
+    """True when the host ends in a suffix the Public Suffix List knows. "tp.hcm" or "ngay.tcqc"
+    match a hostname regex but end in no real suffix; registered_domain() falls back to the host
+    itself for them, so callers that need to tell a URL from a sentence fragment ask here."""
+    if _EXTRACT is None:
+        return "." in host
+    try:
+        return bool(_EXTRACT(host).suffix)
+    except Exception:
+        return False
+
