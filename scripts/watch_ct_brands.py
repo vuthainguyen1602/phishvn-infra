@@ -76,6 +76,9 @@ CT_BRAND_OWNED = frozenset({
     # author: Viettel's enterprise-solutions corporation and its trading company as registrants,
     # name servers matching live DNS (tenten.vn and viettelidc.com.vn)
     "viettelstudy.vn", "viettelprinting.com.vn", "viettelprinting.vn",
+    # 2026-10-08, registrar-API record flagged by the brand-registrant check on 2026-10-07 and
+    # confirmed by the author: MobiFone's Vinh Long branch as registrant, Cloudflare NS matching
+    "mobifonevinhlong.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).

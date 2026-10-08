@@ -137,3 +137,12 @@ confirmed by the author on 2026-10-03.
   both registered 2009-11-18 at GMO-Z.com RUNSYSTEM; the record's `ns/ns1/ns2.viettelidc.com.vn`
   match live DNS, and both resolve to the same two Viettel IDC addresses. Reported with the token
   `viettel` on 2026-09-22.
+
+## 2026-10-08: a seventeenth name
+
+- `mobifonevinhlong.vn`: registrant MOBIFONE VĨNH LONG – Chi nhánh Tổng Công ty Viễn thông
+  MobiFone; registered 2025-12-09 at P.A Việt Nam; the record's `guss/sunny.ns.cloudflare.com`
+  match live DNS. Reported with the token `mobifone` on 2026-10-07 (23:05 local), flagged by the
+  brand-registrant check at 23:30 UTC the same day, and confirmed by the author on 2026-10-08. It
+  reached the revisit cohort's `ct_brands` stratum and the cloaking cohort's exploratory stratum,
+  outside both confirmatory populations; the registrations record it.
