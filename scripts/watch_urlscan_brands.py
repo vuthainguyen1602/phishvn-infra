@@ -325,7 +325,10 @@ def load_official() -> set[str]:
                 # the brand-registrant check of 2026-10-08, confirmed by the author on 2026-10-09:
                 # VNPT Net as registrant, Mat Bao NS (record matbao.com, live matbao.vn), host on
                 # VNPT's AS135905
-                "vnptnet.vn"}
+                "vnptnet.vn",
+                # the brand-registrant check of 2026-10-11, confirmed by the author on 2026-10-12:
+                # VNPT Da Nang as registrant, NS matching live DNS (TENTEN), hosts on VNPT's ASes
+                "vnptdanang.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):

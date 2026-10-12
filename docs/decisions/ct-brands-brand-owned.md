@@ -146,3 +146,12 @@ confirmed by the author on 2026-10-03.
   brand-registrant check at 23:30 UTC the same day, and confirmed by the author on 2026-10-08. It
   reached the revisit cohort's `ct_brands` stratum and the cloaking cohort's exploratory stratum,
   outside both confirmatory populations; the registrations record it.
+
+## 2026-10-11: an eighteenth name
+
+- `vnpt-money.vn`: registrant Tập Đoàn Bưu Chính Viễn Thông Việt Nam (VNPT Group); registered
+  2022-01-27 at Mắt Bão; the record's `julian/liz.ns.cloudflare.com` match live DNS, and the name
+  answered no A record at admission. Reported with the token `vnpt` on 2026-10-10, flagged by the
+  brand-registrant check at 01:30 UTC the same day, and confirmed by the author on 2026-10-11. It
+  reached the revisit cohort's `ct_brands` stratum and the cloaking cohort's exploratory stratum,
+  outside both confirmatory populations; the registrations record it.

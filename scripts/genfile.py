@@ -29,3 +29,20 @@ def write_generated(path: str, text: str, note: str = "") -> str:
         raise
     print(f"[+] {path}{(' ' + note) if note else ''}")
     return path
+
+
+def write_results(path: str, obj, note: str = "") -> str:
+    """Write a machine-readable copy of the numbers behind a generated asset (sorted JSON).
+
+    The walkthrough notebooks recompute an analysis and compare against these files rather than
+    against the LaTeX, so every number a table or sentence prints should be reachable from one."""
+    import json
+
+    def plain(v):
+        if hasattr(v, "item"):
+            return v.item()
+        if hasattr(v, "tolist"):
+            return v.tolist()
+        return str(v)
+    text = json.dumps(obj, indent=2, sort_keys=True, default=plain, allow_nan=True)
+    return write_generated(path, text, note)

@@ -79,6 +79,9 @@ CT_BRAND_OWNED = frozenset({
     # 2026-10-08, registrar-API record flagged by the brand-registrant check on 2026-10-07 and
     # confirmed by the author: MobiFone's Vinh Long branch as registrant, Cloudflare NS matching
     "mobifonevinhlong.vn",
+    # 2026-10-11, registrar-API record flagged by the brand-registrant check on 2026-10-10 and
+    # confirmed by the author: VNPT Group as registrant, Cloudflare NS matching live DNS
+    "vnpt-money.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).
@@ -198,6 +201,17 @@ def main() -> int:
     # cadence with margin for the capture bridge that runs after this under the same lock. It
     # does NOT shorten the retries: giving up faster on a service that 502s in bursts would buy
     # coverage by lowering the answer rate, which is the wrong trade for a feed this thin.
+    ap.add_argument("--breaker", type=int, default=6,
+                    help="stop the tick after this many unreachable patterns in a row; the run of "
+                         "failed tokens is handed back to the cursor instead of being passed over")
+    # crt.sh is not down at random. Probe passes 2026-10-04..11 (data/interim/crtsh_probe.csv):
+    # every day from about 14:00 to 22:00 Vietnam time (07-15 UTC) it answered 0-3 of 193 tokens,
+    # and from 22:00 to 12:00 it answered most of them. A tick in the dead hours spent its whole
+    # 90-minute deadline on 502s, and since the cursor advances by tokens QUERIED, the ~47 it
+    # reached were counted as done and not asked again until the list came round. The breaker ends
+    # such a tick within minutes and leaves the cursor at the first token of the failing run, so the
+    # next healthy tick starts there. Failures at random keep the old patience: one failure resets
+    # nothing, only an unbroken run of them trips it.
     ap.add_argument("--outdir", default=OUTDIR)
     args = ap.parse_args()
 
@@ -243,7 +257,10 @@ def main() -> int:
     unproven: list[str] = []      # empty 200s from tokens with no row history (verdict below)
     unresolved_now: list[str] = []  # the subset the verdict could not settle, for the summary
     answered = False              # did crt.sh return a single row this tick?
+    streak, streak_start, tripped = 0, 0, False   # unbroken run of unreachable patterns (--breaker)
     for i, tok in enumerate(toks):
+        if tripped:
+            break
         if time.monotonic() > deadline:
             skipped = toks[i:]
             print(f"[!] deadline reached — {len(skipped)} tokens deferred to the next tick",
@@ -255,8 +272,19 @@ def main() -> int:
             if rows is None:
                 failed.append(pat)
                 print(f"[!] {pat}: crt.sh unreachable after retries", flush=True)
+                if streak == 0:
+                    streak_start = i
+                streak += 1
+                if args.breaker and streak >= args.breaker:
+                    skipped = toks[streak_start:]
+                    tripped = True
+                    print(f"[!] breaker: {streak} unreachable in a row — ending the tick, "
+                          f"{len(skipped)} tokens (from {toks[streak_start]}) handed back to "
+                          f"the next tick", flush=True)
+                    break
                 time.sleep(args.delay)
                 continue
+            streak = 0
             # crt.sh's third, quietest failure mode: under load it answers 200 with no rows. A token
             # that has returned rows before is expected to keep doing so, so an empty answer for it
             # is a failed query, not coverage.
