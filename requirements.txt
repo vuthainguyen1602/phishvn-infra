@@ -44,3 +44,7 @@ opencv-python           # scripts/core/lib/qr_decode.py
 onnx
 skl2onnx
 onnxruntime
+
+# Manuscript claim checker (make claims). Not on PyPI yet: until the first release,
+# pip install -e ../texclaims  (sibling checkout of the texclaims repository)
+# texclaims>=0.1

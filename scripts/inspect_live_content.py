@@ -16,6 +16,7 @@ import os
 import re
 from pathlib import Path
 import selectors
+import shutil
 import socket
 import ssl
 import subprocess
@@ -91,7 +92,35 @@ def atomic_json(path, data):
     temp.replace(path)
 
 
-def capture(url, directory, docker, timeout=75, fixture=None):
+# Raw bodies kept from 2026-10-15. page.html is the DOM after the scripts ran, so neither the
+# document the server sent nor the scripts that changed it could be read back. Both pass through
+# fetch() above anyway; they are stored once per sha256 under blobs/, and each capture lists
+# url, resource type and hash in evidence.json. Images and fonts are not kept.
+BLOBS = OUT / 'blobs'
+KEEP_RESOURCES = {'document', 'script'}
+# Stop keeping bodies (captures go on) when the disk gets this low: the store is shared by every
+# collector on the device and nothing prunes it.
+MIN_FREE_BYTES = 20 * 1024 ** 3
+
+
+def keep_body(body, store=None):
+    """Store body under its sha256 unless it is already there; return the hash, or None when
+    the disk is too low to keep it."""
+    store = store or BLOBS
+    digest = hashlib.sha256(body).hexdigest()
+    path = store / digest[:2] / digest
+    if path.exists():
+        return digest
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(path.parent).free < MIN_FREE_BYTES:
+        return None
+    temp = path.with_name(digest + '.tmp')
+    temp.write_bytes(body)
+    temp.replace(path)
+    return digest
+
+
+def capture(url, directory, docker, timeout=75, fixture=None, store=None):
     name = 'phishvn-content-' + directory.name
     directory.mkdir(parents=True, exist_ok=True)
     # Container user is the caller: the only writable bind is this capture folder.
@@ -106,7 +135,7 @@ def capture(url, directory, docker, timeout=75, fixture=None):
         stderr=stderr, text=True, bufsize=1)
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
-    deadline, count, total = time.monotonic() + timeout, 0, 0
+    deadline, count, total, kept = time.monotonic() + timeout, 0, 0, []
     result = {'url': url, 'capture_status':'error', 'error':'worker_no_result'}
     try:
         process.stdin.write(json.dumps({'url':url}) + '\n'); process.stdin.flush()
@@ -136,6 +165,14 @@ def capture(url, directory, docker, timeout=75, fixture=None):
                 total += len(response['body']) * 3 // 4
             except Exception as exc:
                 response = {'url': request_url, 'error':type(exc).__name__ + ': ' + str(exc)[:200]}
+            if 'body' in response and event.get('resource') in KEEP_RESOURCES:
+                body = base64.b64decode(response['body'])
+                # A failed write must not change what the browser is served.
+                try: digest = keep_body(body, store)
+                except OSError: digest = None
+                kept.append({'url':request_url, 'resource':event['resource'], 'status':response.get('status'),
+                    'content_type':response.get('headers',{}).get('content-type',''), 'bytes':len(body),
+                    'sha256':digest or hashlib.sha256(body).hexdigest(), 'stored':digest is not None})
             process.stdin.write(json.dumps(response) + '\n'); process.stdin.flush()
         else:
             result['error'] = 'capture_deadline_exceeded'
@@ -150,6 +187,7 @@ def capture(url, directory, docker, timeout=75, fixture=None):
         stderr.close()
     result['request_count'] = count
     result['fetched_bytes'] = total
+    result['bodies'] = kept
     return result
 
 
