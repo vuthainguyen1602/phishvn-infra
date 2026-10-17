@@ -170,6 +170,20 @@ DEFAULT_TOKENS = [
     "spxvn",             # 0
     "xanhsm",            # 0, the taxi brand a 2025 wave of fake driver-recruitment pages used
     "payoo",             # 7
+    # online games & card top-up (nạp thẻ). Added 2026-10-17 from scam.vn's "Giả mạo Garena"
+    # warning (486 reported names, 2021-2026): fake Liên Quân / Free Fire top-up, giftcode and
+    # membership pages that take scratch-card codes and game or Facebook accounts. 30-day volume
+    # measured the same day, as above. The official top-up portal napthe.vn (registrant ShopeePay,
+    # Garena's group) and garena.vn are on the whitelist.
+    "lienquan",          # 41
+    "napthe",            # 72
+    "napkimcuong",       # 2
+    "goshopee",          # 0, the fake-order ("đặt đơn hộ") family scam.vn lists 2,161 names for
+    # REJECTED the same day: garena 1,070 and freefire 1,155 (global brands, mostly real or
+    # Philippine/Indonesian traffic), giftcode 27 (English, giftcode.co), kimcuong 22 (real jewellers),
+    # sukien 67 and nhanqua 8 (ordinary words: an events company, xacnhanquangcao.vfa.gov.vn),
+    # quanhuy 0 (also a personal name). Typo names like gerana.vn / garenaa.vn carry no exact token
+    # and stay out of reach of both feeds.
 ]
 
 # A SECOND LENS, on page content: the token list is blind to e.g. `56bfrd3jrn.pages.dev` rendering
@@ -328,7 +342,11 @@ def load_official() -> set[str]:
                 "vnptnet.vn",
                 # the brand-registrant check of 2026-10-11, confirmed by the author on 2026-10-12:
                 # VNPT Da Nang as registrant, NS matching live DNS (TENTEN), hosts on VNPT's ASes
-                "vnptdanang.vn"}
+                "vnptdanang.vn",
+                # 2026-10-17, with the game top-up tokens: Garena Vietnam's own domain and its
+                # official top-up portal (registrant ShopeePay, serving Garena's assets), both
+                # read from the registrar-API record by the author
+                "garena.vn", "napthe.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
