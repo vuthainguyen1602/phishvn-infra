@@ -346,7 +346,11 @@ def load_official() -> set[str]:
                 # 2026-10-17, with the game top-up tokens: Garena Vietnam's own domain and its
                 # official top-up portal (registrant ShopeePay, serving Garena's assets), both
                 # read from the registrar-API record by the author
-                "garena.vn", "napthe.vn"}
+                "garena.vn", "napthe.vn",
+                # the brand-registrant check of 2026-10-17 (12:30 UTC), confirmed by the author the
+                # same day: VNPT's IT company (Digital Business Solutions Centre branch) as registrant,
+                # NS matching live DNS (vdconline.vn), hosts on VNPT's AS135905; a Zimbra webmail login
+                "vnptemail.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
