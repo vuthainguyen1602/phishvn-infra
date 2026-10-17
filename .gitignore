@@ -13,3 +13,7 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .idea/
+# notebook settings and the folders notebooks download into
+.env
+notebooks/*/*_work/
+notebooks/*/*_data/
