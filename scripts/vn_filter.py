@@ -110,6 +110,17 @@ def _match_tokens(d: str) -> bool:
     return bool(VN_TOKENS.search(d)) or bool(BRAND_TOKENS and BRAND_TOKENS.search(d))
 
 
+def idn_spelling(domain: str) -> str:
+    """The host with every xn-- label decoded and stripped of diacritics, dots and hyphens kept;
+    "" for an ASCII host. Both token tiers run on it the way they run on the raw name -- nothing is
+    fused, so the registry tier's precision argument below does not apply. Without it a Vietnamese
+    homograph on a foreign TLD reached only the fused core: `pay.pubgm.zỉng.com` (registry token
+    `zing`) was admitted on 2026-08-18 and rejected by every version after that morning."""
+    if "xn--" not in domain:
+        return ""
+    return ".".join("-".join(segs) for segs in name_segments(domain))
+
+
 # A match on the separator-stripped spelling counts only when it is whole segments glued together:
 # it must START where a segment starts, END where one ends, and be at least this long. Restricted
 # to the hand-curated core -- the registry tier's audited precision is 0.10 on the raw name.
@@ -216,10 +227,11 @@ def is_vn_target(domain: str) -> bool:
     # Foreign national ccTLDs never host legitimate Vietnamese phishing
     if any(d.endswith(sfx) for sfx in FOREIGN_CCTLDS):
         return False
-    # Foreign lure words without explicit Vietnamese context
-    if FOREIGN_KEYWORDS.search(d) and not VN_CONTEXT_TOKENS.search(d):
+    idn = idn_spelling(d)
+    # Foreign lure words without explicit Vietnamese context, on either spelling
+    if any(FOREIGN_KEYWORDS.search(s) and not VN_CONTEXT_TOKENS.search(s) for s in (d, idn) if s):
         return False
-    return _match_tokens(d) or _match_fused(d)
+    return _match_tokens(d) or bool(idn and _match_tokens(idn)) or _match_fused(d)
 
 
 def visible_text(html: str) -> str:
