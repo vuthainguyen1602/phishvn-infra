@@ -155,3 +155,14 @@ confirmed by the author on 2026-10-03.
   brand-registrant check at 01:30 UTC the same day, and confirmed by the author on 2026-10-11. It
   reached the revisit cohort's `ct_brands` stratum and the cloaking cohort's exploratory stratum,
   outside both confirmatory populations; the registrations record it.
+
+## 2026-10-23: a nineteenth name
+
+- `mobifoneinvoice.vn`: registrant Trung tâm Công nghệ Thông tin MobiFone – Chi nhánh Tổng Công
+  ty Viễn thông MobiFone; registered 2020-05-13 at P.A Việt Nam; the record's
+  `ns1/ns2.pavietnam.vn` and `nsbak.pavietnam.net` match live DNS, and the name resolves to
+  137.59.46.49 on MobiFone's own network (AS131429). Reported with the token `mobifone` on
+  2026-10-22 (05:05 local), flagged by the brand-registrant check at 05:30 UTC the same day, and
+  confirmed by the author on 2026-10-23. It reached the revisit cohort's `ct_brands` stratum and
+  the cloaking cohort's exploratory stratum, outside both confirmatory populations; the
+  registrations record it.

@@ -82,6 +82,10 @@ CT_BRAND_OWNED = frozenset({
     # 2026-10-11, registrar-API record flagged by the brand-registrant check on 2026-10-10 and
     # confirmed by the author: VNPT Group as registrant, Cloudflare NS matching live DNS
     "vnpt-money.vn",
+    # 2026-10-23, registrar-API record flagged by the brand-registrant check on 2026-10-22 and
+    # confirmed by the author: MobiFone's IT centre as registrant, P.A Viet Nam NS matching live
+    # DNS, hosted on MobiFone's AS131429
+    "mobifoneinvoice.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).
