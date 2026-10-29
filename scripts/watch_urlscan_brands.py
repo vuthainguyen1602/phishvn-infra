@@ -350,7 +350,11 @@ def load_official() -> set[str]:
                 # the brand-registrant check of 2026-10-17 (12:30 UTC), confirmed by the author the
                 # same day: VNPT's IT company (Digital Business Solutions Centre branch) as registrant,
                 # NS matching live DNS (vdconline.vn), hosts on VNPT's AS135905; a Zimbra webmail login
-                "vnptemail.vn"}
+                "vnptemail.vn",
+                # the brand-registrant check of 2026-10-28 (06:30 UTC), confirmed by the author on
+                # 2026-10-29: VNPAY as registrant, NS matching vnpay.vn (pavietnam), hosts on
+                # VNPAY's own AS63743; VNPAY's payment-gateway sandbox
+                "vnpaytest.vn"}
     try:
         with open(TOKENS_JSON, encoding="utf-8") as f:
             for t in json.load(f).get("tokens", []):
