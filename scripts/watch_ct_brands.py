@@ -10,9 +10,22 @@ CANDIDATE, not a labelled phish; capture happens elsewhere. Brand tokens, the of
 whitelist and the token boundary rule are imported from watch_urlscan_brands.py so the two feeds
 cannot drift apart.
 
+THE WINDOW IS ON crt.sh's ID since 2026-10-31, not on time. crt.sh assigns ids as it ingests, so a
+pattern reports every cert whose id is above the highest id that pattern has returned before, with
+not_before no older than --max-age-days. The 168h time window survives only for a pattern's first
+answer. Why: crt.sh stopped returning entry_timestamp (last value in detections 2026-08-31), which
+left the window on not_before alone, and by October crt.sh was ingesting certs a median ~16 days
+after issue, so 544 of 873 filter-passing domains certified 18 September to 30 October fell
+outside it (audit 2026-10-31, docs/design-notes/watch-ct-brands.md). The same id also exposes a
+STALE answer: an answer whose highest id is below the stored one comes from an older copy of the
+index and is a failed query.
+
 RUN:
-  python scripts/watch_ct_brands.py --hours 6            # normal cron tick
-  python scripts/watch_ct_brands.py --hours 168          # one-off backfill of the past week
+  python scripts/watch_ct_brands.py                      # normal cron tick
+  python scripts/watch_ct_brands.py --backfill --deadline-min 600
+      # one-off: every filter-passing cert at or below the stored ids and within --max-age-days,
+      # to backfill.csv, not detections.csv (whatever admits from detections.csv must not see
+      # weeks-old names as new)
 Why crt.sh over certstream, and how 168h was measured: docs/design-notes/watch-ct-brands.md
 """
 from __future__ import annotations
@@ -178,6 +191,23 @@ def search(pattern: str, attempts: int = 3, backoff: float = 20.0) -> list[dict]
     return None
 
 
+def stale(rows: list[dict], mark, now: datetime) -> bool:
+    """True when an answer comes from an older copy of crt.sh's index: its highest id is below the
+    highest this pattern has returned before (`mark` = [id, not_after]). Measured 2026-10-30/31:
+    121 of 510 non-empty answers (24%) were short of the best of three asks minutes apart, and
+    `vietcombank%` answered 459 rows topping out at an id the collector had passed an hour earlier.
+    exclude=expired lets the top legitimately fall once the marked cert expires, so an expired mark
+    proves nothing."""
+    if not mark:
+        return False
+    exp = parse_ts(mark[1])
+    return top_id(rows) < int(mark[0]) and (exp is None or exp > now)
+
+
+def top_id(rows: list[dict]) -> int:
+    return max((int(r.get("id") or 0) for r in rows), default=0)
+
+
 def parse_ts(s: str):
     """crt.sh timestamps are UTC, second or sub-second precision, no zone suffix."""
     try:
@@ -189,8 +219,15 @@ def parse_ts(s: str):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hours", type=float, default=168,
-                    help="report certs whose CT entry (or not_before) falls in the last N hours; "
-                         "far wider than the cadence on purpose — see THE WINDOW in the docstring")
+                    help="window on not_before for a pattern's FIRST answer only; later answers "
+                         "are windowed on crt.sh's id (THE WINDOW in the docstring)")
+    ap.add_argument("--max-age-days", type=float, default=90,
+                    help="an id-windowed cert is still dropped if its not_before is older than this: "
+                         "late ingestion is ~16 days, this keeps a re-ingested old log out")
+    ap.add_argument("--backfill", action="store_true",
+                    help="report filter-passing certs at or below each pattern's stored id, within "
+                         "--max-age-days, to backfill.csv; leaves the id marks, cursor and "
+                         "detections.csv alone")
     ap.add_argument("--tokens", nargs="+", default=DEFAULT_TOKENS)
     ap.add_argument("--delay", type=float, default=5.0,
                     help="seconds between crt.sh queries (be polite; it is a shared free service)")
@@ -219,14 +256,16 @@ def main() -> int:
     ap.add_argument("--outdir", default=OUTDIR)
     args = ap.parse_args()
 
-    det_path = os.path.join(args.outdir, "detections.csv")
+    det_path = os.path.join(args.outdir, "backfill.csv" if args.backfill else "detections.csv")
     seen_path = os.path.join(args.outdir, "seen_domains.txt")
     os.makedirs(args.outdir, exist_ok=True)
 
     official, seen = load_official() | CT_BRAND_OWNED, load_seen(seen_path)
     # naive-UTC on purpose: crt.sh timestamps are naive UTC strings, and .replace(tzinfo=None)
     # keeps this working on the Jetson's pre-3.11 Python (no datetime.UTC there)
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=args.hours)
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoff = now_utc - timedelta(hours=args.hours)
+    age_cap = now_utc - timedelta(days=args.max_age_days)
     cand: dict[str, dict] = {}
     failed: list[str] = []
 
@@ -242,6 +281,8 @@ def main() -> int:
                 start = int(f.read().strip()) % len(toks)
         except (OSError, ValueError):
             start = 0
+    if args.backfill:
+        start = 0                 # every token, in list order; the cursor is the live tick's
     toks = toks[start:] + toks[:start]
 
     # per-token high-water mark of rows crt.sh has ever returned, used to tell a genuine
@@ -252,9 +293,12 @@ def main() -> int:
             _raw = json.load(f)
             seen_rows = {str(k): int(v) for k, v in _raw.get("rows", _raw).items()}
             tries = {str(k): int(v) for k, v in _raw.get("unresolved_ticks", {}).items()}
+            # per-pattern [highest crt.sh id returned, that cert's not_after] (THE WINDOW)
+            marks = {str(k): list(v) for k, v in _raw.get("max_id", {}).items()}
     except (OSError, ValueError):
         seen_rows = {}
         tries = {}
+        marks = {}
 
     deadline = time.monotonic() + args.deadline_min * 60
     skipped: list[str] = []
@@ -307,14 +351,40 @@ def main() -> int:
                     unproven.append(pat)
                 time.sleep(args.delay)
                 continue
-            seen_rows[key] = max(seen_rows.get(key, 0), len(rows))
             answered = True
+            mark = marks.get(key)
+            if stale(rows, mark, now_utc):
+                failed.append(pat)
+                print(f"[!] {pat}: stale answer from crt.sh ({len(rows)} certs, top id "
+                      f"{top_id(rows)} < {mark[0]} returned before) — treating as a failed query",
+                      flush=True)
+                time.sleep(args.delay)
+                continue
+            seen_rows[key] = max(seen_rows.get(key, 0), len(rows))
+            floor = int(mark[0]) if mark else None
+            if args.backfill and floor is None:
+                # no mark yet: the live tick sets it first, so the two never report the same id
+                print(f"[.] {pat}: no id mark yet — left to the live tick", flush=True)
+                time.sleep(args.delay)
+                continue
+            if not args.backfill:     # not stale, so the top is at or past the mark, or the mark expired
+                top = max(rows, key=lambda r: int(r.get("id") or 0))
+                marks[key] = [int(top.get("id") or 0), top.get("not_after", "")]
             print(f"[.] {pat}: {len(rows)} certs in history", flush=True)
             for row in rows:
-                # window on entry_timestamp OR not_before: a late-ingested-but-fresh cert should
-                # still surface rather than fall outside both edges
-                ets, nbf = parse_ts(row.get("entry_timestamp", "")), parse_ts(row.get("not_before", ""))
-                if not ((ets and ets >= cutoff) or (nbf and nbf >= cutoff)):
+                rid, nbf = int(row.get("id") or 0), parse_ts(row.get("not_before", ""))
+                if args.backfill:
+                    # newer than the mark is the live tick's; the age cap keeps the year-long
+                    # certs of names that predate this feed out of it
+                    if rid > floor or not (nbf and nbf >= age_cap):
+                        continue
+                elif floor is None:
+                    # a pattern's first answer: the old time window (entry_timestamp is no longer
+                    # served, so in practice not_before)
+                    ets = parse_ts(row.get("entry_timestamp", ""))
+                    if not ((ets and ets >= cutoff) or (nbf and nbf >= cutoff)):
+                        continue
+                elif rid <= floor or not (nbf and nbf >= age_cap):
                     continue
                 # name_value carries every SAN, newline-separated; wildcards mark kit infrastructure.
                 # common_name is read as a name source too, not just recorded as metadata: crt.sh's
@@ -392,21 +462,24 @@ def main() -> int:
             print(f"[!] {len(unproven)} empty 200(s) and not one row returned all tick — counting "
                   f"them as failed queries, not coverage: {', '.join(unproven)}", flush=True)
 
-    try:
-        with open(rows_path, "w", encoding="utf-8") as f:
-            json.dump({"rows": seen_rows, "unresolved_ticks": tries}, f, sort_keys=True)
-    except OSError as e:
-        print(f"[!] could not persist token row counts ({e})", flush=True)
+    if not args.backfill:
+        try:
+            with open(rows_path, "w", encoding="utf-8") as f:
+                json.dump({"rows": seen_rows, "unresolved_ticks": tries, "max_id": marks}, f,
+                          sort_keys=True)
+        except OSError as e:
+            print(f"[!] could not persist token row counts ({e})", flush=True)
 
     queried = len(toks) - len(skipped)
-    if toks:                       # persist the resume point before anything else can fail
+    if toks and not args.backfill:  # persist the resume point before anything else can fail
         try:
             with open(cur_path, "w", encoding="utf-8") as f:
                 f.write(str((start + queried) % len(toks)))
         except OSError as e:
             print(f"[!] could not persist cursor ({e}) — next run restarts at the same token",
                   flush=True)
-    status = (f"[i] {queried}/{len(toks)} tokens queried, window {args.hours:g}h "
+    window = f"backfill, {args.max_age_days:g}d" if args.backfill else f"window id mark, {args.max_age_days:g}d"
+    status = (f"[i] {queried}/{len(toks)} tokens queried, {window} "
               f"-> {len(cand)} new candidate domains")
     if failed:
         status += f" | {len(failed)} FAILED (crt.sh unreachable): {', '.join(failed)}"

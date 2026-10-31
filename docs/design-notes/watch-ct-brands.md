@@ -27,6 +27,30 @@ surviving filters); crt.sh answers ~half the time and the deadline defers tokens
 be queried successfully only every day or so — a 48h window gave it barely one chance (newest
 bidv cert observed was 51h old, just outside). Seven days costs nothing client-side.
 
+THE WINDOW MOVED TO crt.sh's ID on 2026-10-31. Two things broke the time window. crt.sh stopped
+serving entry_timestamp (the last non-empty value in detections.csv is 2026-08-31), so the window
+sat on not_before alone; and crt.sh's ingestion lag grew from hours to weeks. A no-window audit
+(Jetson, 2026-10-30 22:30 to 10-31 04:58: every pattern asked three times, rows united by id, the
+collector's own filters) found 873 filter-passing domains certified 18 September to 30 October.
+The collector had 283. Of the 590 it lacked, 544 had been ingested more than 168h after not_before
+(ingest time read off the id, interpolated from detections.csv; median lag of the missed ~386h, of
+the caught ~97h) and 46 had not. The same audit found 121 of 510 non-empty answers (24%) short of
+the best of their pattern's three asks, minutes apart: crt.sh serves from copies of its index that
+lag one another. The old guard caught only an empty answer.
+
+So each pattern stores the highest id it has returned and the not_after of that cert
+(token_rows.json, `max_id`). A later answer reports every cert above that id whose not_before is
+within 90 days (a re-ingested old log is not news); an answer whose highest id is below the mark
+is stale and counts as a failed query. exclude=expired can lower the top legitimately once the
+marked cert expires, so an expired mark does not make an answer stale. The 168h window survives
+only for a pattern's first answer. The 46 missed in-window are mostly the week of 21 to 27
+September; the stale guard is the fix aimed at them.
+
+The 590 and the rest of the past 90 days were written once by `--backfill` to backfill.csv, not
+to detections.csv: host_infra.csv admits from detections.csv, and two registered studies admit
+from host_infra.csv, so weeks-old names must not arrive there as new. Backfilled names go into
+seen_domains.txt so the live tick never reports them later.
+
 A HIT is a CANDIDATE, not a labelled phish — weaker than a urlscan hit (cert proves setup, not a
 live lure) but can predate the page. Capture (urlscan_submit.py / safe_crawl.py) is deliberately
 not done here: this script's one job is to notice, cheaply and early.
@@ -39,5 +63,5 @@ closing boundary for tokens of four characters or fewer. What they are, what the
 reader applies them to rows collected earlier: docs/decisions/ct-brands-brand-owned.md.
 
 RUN:
-  python scripts/watch_ct_brands.py --hours 6            # normal cron tick
-  python scripts/watch_ct_brands.py --hours 168          # one-off backfill of the past week
+  python scripts/watch_ct_brands.py                      # normal cron tick
+  python scripts/watch_ct_brands.py --backfill --deadline-min 600   # one-off, to backfill.csv
