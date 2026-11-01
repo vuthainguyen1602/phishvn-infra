@@ -51,6 +51,13 @@ to detections.csv: host_infra.csv admits from detections.csv, and two registered
 from host_infra.csv, so weeks-old names must not arrive there as new. Backfilled names go into
 seen_domains.txt so the live tick never reports them later.
 
+A FIRST MARK CAN BE STALE TOO. On 2026-10-31 many patterns took their first mark from an older copy
+of the index; the next current answer carried every certificate between the two tops above the
+mark, and 524 already-ingested names entered detections.csv as new (78, 228, 113 ... per tick, then
+0 to 5 from 2026-11-01). Since 2026-11-01 a mark records when it was first set, and for WARM_H = 48
+hours an above-mark certificate is reported only if its not_before is inside the 168h window; older
+ones go to backfill.csv. The 524 are listed in data/raw/ct_brands/released_by_first_marks_20261031.csv.
+
 A HIT is a CANDIDATE, not a labelled phish — weaker than a urlscan hit (cert proves setup, not a
 live lure) but can predate the page. Capture (urlscan_submit.py / safe_crawl.py) is deliberately
 not done here: this script's one job is to notice, cheaply and early.

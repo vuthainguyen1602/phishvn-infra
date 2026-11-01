@@ -191,6 +191,23 @@ def search(pattern: str, attempts: int = 3, backoff: float = 20.0) -> list[dict]
     return None
 
 
+# A pattern's first mark can come from an older copy of crt.sh's index, and the next answer from a
+# current copy then carries every certificate between the two tops as above the mark: on 2026-10-31
+# the first marks released 524 already-ingested names as new (deviation record of 2026-11-01). For
+# WARM_H hours after a pattern gets its first mark, a certificate above the mark is reported only if
+# its not_before is inside the --hours window; the rest go to backfill.csv, not detections.csv.
+WARM_H = 48
+
+
+def warming(mark, now: datetime) -> bool:
+    """True while a pattern's mark is younger than WARM_H. Marks written before the warm-up rule
+    existed carry no set time and count as warm."""
+    if not mark or len(mark) < 3 or not mark[2]:
+        return False
+    set_at = parse_ts(mark[2])
+    return set_at is not None and now - set_at < timedelta(hours=WARM_H)
+
+
 def stale(rows: list[dict], mark, now: datetime) -> bool:
     """True when an answer comes from an older copy of crt.sh's index: its highest id is below the
     highest this pattern has returned before (`mark` = [id, not_after]). Measured 2026-10-30/31:
@@ -267,6 +284,7 @@ def main() -> int:
     cutoff = now_utc - timedelta(hours=args.hours)
     age_cap = now_utc - timedelta(days=args.max_age_days)
     cand: dict[str, dict] = {}
+    divert: dict[str, dict] = {}   # warm-up rows bound for backfill.csv (see WARM_H)
     failed: list[str] = []
 
     # Resume cursor advances by tokens ACTUALLY queried, not by clock: a clock-derived offset
@@ -367,9 +385,13 @@ def main() -> int:
                 print(f"[.] {pat}: no id mark yet — left to the live tick", flush=True)
                 time.sleep(args.delay)
                 continue
+            warm = warming(mark, now_utc)
             if not args.backfill:     # not stale, so the top is at or past the mark, or the mark expired
                 top = max(rows, key=lambda r: int(r.get("id") or 0))
-                marks[key] = [int(top.get("id") or 0), top.get("not_after", "")]
+                # the set time is the FIRST mark's; a later mark keeps it, so the warm-up runs once
+                set_at = (mark[2] if mark and len(mark) > 2 else "") if mark \
+                    else now_utc.strftime("%Y-%m-%dT%H:%M:%S")
+                marks[key] = [int(top.get("id") or 0), top.get("not_after", ""), set_at]
             print(f"[.] {pat}: {len(rows)} certs in history", flush=True)
             for row in rows:
                 rid, nbf = int(row.get("id") or 0), parse_ts(row.get("not_before", ""))
@@ -386,6 +408,10 @@ def main() -> int:
                         continue
                 elif rid <= floor or not (nbf and nbf >= age_cap):
                     continue
+                # during the warm-up an above-mark cert outside the time window may be an
+                # already-ingested one that an older first mark let through: divert it
+                target = divert if (not args.backfill and floor is not None and warm
+                                    and not (nbf and nbf >= cutoff)) else cand
                 # name_value carries every SAN, newline-separated; wildcards mark kit infrastructure.
                 # common_name is read as a name source too, not just recorded as metadata: crt.sh's
                 # LIKE search (q=%token%) returns only the identity that MATCHED, and for most VN
@@ -405,7 +431,7 @@ def main() -> int:
                     # multi-level wildcards (*.*.x.com) would otherwise reach urlscan as garbage URLs
                     if not dom or "." not in dom or any(c in dom for c in " @*_"):
                         continue
-                    if dom in seen or dom in cand or is_official(dom, official):
+                    if dom in seen or dom in cand or dom in divert or is_official(dom, official):
                         continue
                     # Screen out foreign sovereign ccTLDs (.in, .lk, .ph, .id, .br, etc.)
                     if any(dom.endswith(sfx) for sfx in FOREIGN_CCTLDS):
@@ -423,7 +449,7 @@ def main() -> int:
                         continue
                     if dom.endswith(CLOUD_INTERNAL_SUFFIXES) or not short_token_closed(dom, tok):
                         continue
-                    cand[dom] = {
+                    target[dom] = {
                         "domain": dom, "brand": tok, "wildcard": wildcard,
                         "crtsh_id": row.get("id", ""),
                         "common_name": str(row.get("common_name", "")).lower(),
@@ -491,6 +517,22 @@ def main() -> int:
     if skipped:
         status += f" | {len(skipped)} deferred: {', '.join(skipped)}"
     print(status)
+    if divert:
+        bf_path = os.path.join(args.outdir, "backfill.csv")
+        fresh_bf = not os.path.exists(bf_path)
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        with open(bf_path, "a", newline="", encoding="utf-8") as f, \
+                open(seen_path, "a", encoding="utf-8") as sf:
+            w = csv.DictWriter(f, fieldnames=FIELDS)
+            if fresh_bf:
+                w.writeheader()
+            for dom, row in divert.items():
+                row["first_detected"] = stamp
+                w.writerow({k: row.get(k, "") for k in FIELDS})
+                sf.write(dom + "\n")
+                f.flush()
+                sf.flush()
+        print(f"[i] warm-up: {len(divert)} above-mark name(s) outside the time window -> {bf_path}")
     if not cand:
         return 0
 
