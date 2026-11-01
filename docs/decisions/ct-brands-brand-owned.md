@@ -166,3 +166,22 @@ confirmed by the author on 2026-10-03.
   confirmed by the author on 2026-10-23. It reached the revisit cohort's `ct_brands` stratum and
   the cloaking cohort's exploratory stratum, outside both confirmatory populations; the
   registrations record it.
+
+## 2026-11-01: four more names, released on 2026-10-31
+
+All four reached `detections.csv` in the release of already-ingested certificates on 2026-10-31
+(deviation record of 2026-11-01 in both registrations), were flagged by the brand-registrant check
+on 2026-10-31 (09:30 and 11:30 UTC), and were confirmed by the author on 2026-11-01. Each reached
+the revisit cohort's `ct_brands` stratum and the cloaking cohort's exploratory stratum, outside
+both confirmatory populations.
+
+- `vietlott.com.vn`: registrant Công ty TNHH MTV Xổ số Điện toán Việt Nam (Vietlott); registered
+  2013-02-20 at P.A Việt Nam; name servers match live DNS (Cloudflare). Token `vietlott`.
+- `viettel-ca.vn`: registrant Tổng Công ty Viễn thông Viettel, a branch of Viettel Group; served
+  by Viettel's own name servers (`dns1/dns2.vietel.com.vn`) and resolving to 171.244.232.17 on
+  Viettel's AS7552. The check marked its NS as a mismatch only because they differ from
+  `viettel.com.vn`'s. Token `viettel`.
+- `viettelnghean.com.vn`: registrant Viettel Nghệ An, a branch of Viettel Group; name servers
+  match live DNS (`dotvndns`). Token `viettel`.
+- `vietteltphcmshop.vn`: registrant Viettel Thành phố Hồ Chí Minh, a branch of Viettel Group;
+  name servers match live DNS (`dotvndns`). Token `viettel`.

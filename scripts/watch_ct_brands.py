@@ -99,6 +99,15 @@ CT_BRAND_OWNED = frozenset({
     # confirmed by the author: MobiFone's IT centre as registrant, P.A Viet Nam NS matching live
     # DNS, hosted on MobiFone's AS131429
     "mobifoneinvoice.vn",
+    # 2026-11-01, registrar-API records flagged by the brand-registrant check on 2026-10-31 and
+    # confirmed by the author; all four reached detections.csv in the release of 2026-10-31
+    # (deviation record of 2026-11-01). Vietlott as registrant, NS matching live DNS
+    "vietlott.com.vn",
+    # Viettel Group's telecom corporation as registrant; Viettel's own NS (dns1/dns2.vietel.com.vn)
+    # and Viettel's AS7552, though the NS differ from viettel.com.vn's
+    "viettel-ca.vn",
+    # Viettel's Nghe An and Ho Chi Minh City branches as registrants, NS matching live DNS
+    "viettelnghean.com.vn", "vietteltphcmshop.vn",
 })
 
 # Two noise rules, decided 2026-09-19 on the same reading of the 103 rows (same decision file).
