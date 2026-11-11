@@ -49,9 +49,11 @@ supervised result.
 
 ## Validation (`make_label_validation.py`)
 
-1. `--draw`: a fixed-seed sample from `infra_dataset.csv`, stratified by (arm, verdict): the
-   feed-matched tier whole, the three heuristic tiers and the two benign arms sampled without
-   replacement. Writes `annotator_A.csv`, `annotator_B.csv` (blinded, differently shuffled),
+1. `--draw`: a fixed-seed sample from the frozen `infra_dataset.csv`, without replacement within
+   strata: the phishing arm by screen verdict, the Certificate Transparency arm by source, and
+   the national trust registry arm. A stratum no larger than its target is reviewed whole. The
+   sample of 2026-09-15 was drawn under an earlier plan (feed-matched tier whole, each benign arm
+   as one stratum) and was never reviewed. Writes `annotator_A.csv`, `annotator_B.csv` (blinded, differently shuffled),
    `strata_key_KEEP_BLINDED.csv` (stratum, size, inclusion probability; **never given to an
    annotator**), `adjudication.csv` and `sample_manifest.json`.
 2. `--bundle`: one blinded evidence bundle per item under `evidence/<item_id>/`: the urlscan
