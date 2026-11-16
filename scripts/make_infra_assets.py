@@ -535,7 +535,7 @@ def public_suffix(reg_dom: str) -> str:
 
 
 def lexical_frame(domains: pd.Series) -> pd.DataFrame:
-    """The lexical channel: CompPhish features of the HOSTNAME string, identical extractor for
+    """The lexical channel: the 21 lexical URL features of the HOSTNAME string, identical extractor for
     both arms (the benign arm has no URL — CT logs carry names — so the hostname is the only
     string both arms possess, and using anything richer on one arm would measure the channel
     difference, not the infrastructure)."""

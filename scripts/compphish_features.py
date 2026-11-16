@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-compphish_features.py — Extract the CompPhish (Goenka 2026, Mendeley 10.17632/fmbs4kp9wz.2)
-26-column lexical URL feature schema, so our VN data is cross-dataset compatible with CompPhish.
+compphish_features.py — Extract the study's 26-column lexical URL feature schema from a URL string.
+The features need only the URL, so they can be computed for any corpus that publishes raw URLs
+(CompPhish, Goenka et al. 2026, among them). The file name is historical: CompPhish's own released
+features are a different 70-feature URL+HTML set.
 
 Schema (exact order):
   url,url_len,dom,dom_len,is_ip,tld,tld_len,subdom_cnt,letter_cnt,digit_cnt,special_cnt,
@@ -44,8 +46,8 @@ def extract(url: str) -> dict:
     NOTE: all length/count/ratio/entropy features are computed on the *scheme-stripped*
     URL (``core``) so the stored http:// vs https:// prefix cannot leak into them. In our
     collection benign URLs were stored with https and phishing with http, which made the
-    scheme a perfect (spurious) label predictor; ``is_https`` is kept for CompPhish schema
-    compatibility but is a known collection artifact — exclude it from modelling.
+    scheme a perfect (spurious) label predictor; ``is_https`` is kept as a column
+    but is a known collection artifact — exclude it from modelling.
     """
     url = str(url).strip()
     p = urlparse(url if re.match(r"^[a-z]+://", url, re.I) else "http://" + url)
